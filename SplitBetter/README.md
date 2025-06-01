@@ -1,50 +1,41 @@
-# Welcome to your Expo app 👋
+# SplitBetter
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+### Level of Achievement: Apollo 11
+### Tead ID: 7535
+## What is SplitBetter
+SplitBetter is a mobile application designed to simplify and streamline **bill-splitting among groups of friends**, whether during trips, shared meals, or casual outings. The app provides an intuitive interface for tracking shared expenses, calculating who owes what, and settling balances efficiently.
 
-## Get started
+## Problem Motivation
 
-1. Install dependencies
+Splitting bills in a group can be a confusing and error-prone process. Whether on a trip or dining out, people often forget who paid for what, lose receipts, or feel uncomfortable reminding others to pay them back. Existing apps are either too complex or lack support for casual, real-life group dynamics.
 
-   ```bash
-   npm install
-   ```
+**SplitBetter aims to fix this** by offering a lightweight, user-friendly solution for:
+- Keeping track of shared expenses
+- Managing group splits with minimal friction
+- Clearly showing who owes whom in a transparent way
 
-2. Start the app
+## Features
 
-   ```bash
-   npx expo start
-   ```
+### 1. Easy Bill Splitting
+SplitBetter allows users to easily divide expenses among group members, removing the hassle of manual calculations and ensuring fair contributions.
 
-In the output, you'll find options to open the app in a
+### 2. Activity-Based Tabs
+Users can manage expenses across multiple activities (e.g., trips, meals, events) using separate tabs shown on the home screen. This helps keep spending organized and contextual.
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+### 3. Automated Bill Recognition
+With built-in **Optical Character Recognition (OCR)**, users can scan receipts to automatically detect items and split costs efficiently, making bill entry fast and effortless.
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+### 4. Real-Time Foreign Currency Conversion
+When traveling abroad, expenses can be recorded in different currencies, and SplitBetter will handle the conversion in real time to ensure accurate and fair splits.
 
-## Get a fresh project
+### 5. Debt Settlement Summary
+A dedicated summary page provides a clear breakdown of how much each user owes to others. Users can also send payment reminders or notifications directly through the app.
 
-When you're ready, run:
+### 6. Personal Expense Tracking & Budgeting
+Beyond group expenses, users can monitor their **personal spending** and set budgets to better manage their own finances.
 
-```bash
-npm run reset-project
-```
+## Design and Plan
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
-
-## Learn more
-
-To learn more about developing your project with Expo, look at the following resources:
-
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
-
-## Join the community
-
-Join our community of developers creating universal apps.
-
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+- We used Firebase for implementing secure user authentication, allowing users to sign up and log in using their email and password.
+- The app interface was built using React Native and styled with Tailwind CSS utilities, providing a clean and responsive user experience across different device sizes.
+- For our next milestone, we plan to continue building the UI using React Native and incorporating the OCR technology into the app as we work toward completing a fully functional mobile app running on a simulator.
