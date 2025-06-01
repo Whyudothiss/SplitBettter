@@ -1,24 +1,25 @@
-//import { Image } from 'expo-image';
+// // //import { Image } from 'expo-image';
+// //import './global.css';
 import { View, Text, Image, Button, TouchableOpacity, TextInput, Platform, StyleSheet } from 'react-native';
 import { responsiveWidth } from 'react-native-responsive-dimensions';
-//import './global.css';
 
 import { HelloWave } from '@/components/HelloWave';
 import ParallaxScrollView from '@/components/ParallaxScrollView';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 
-//const screenWidth = Dimensions.get('window').width;
-
 export default function HomeScreen() {
   return (
-    <View>
+    <View style={styles.container}>
       <Text style={styles.header}>SplitBetter</Text>
       
-
-      <View style={styles.itemContainer}>
-        <Text style={styles.header}>Body</Text>
-      </View>
+      <TouchableOpacity style={styles.tripButton}>
+        <Text style={styles.tripButtonText}>Trip 1</Text>
+      </TouchableOpacity>
+      
+      <TouchableOpacity style={styles.tripButton}>
+        <Text style={styles.tripButtonText}>Meal 2</Text>
+      </TouchableOpacity>
     </View>
   );
 }
@@ -42,27 +43,40 @@ const styles = StyleSheet.create({
   },
   container: {
     flex: 1,
-    flexDirection: 'column',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    backgroundColor: '#f5f5f5', // light grey background to match mockup
   },
   header: {
     marginTop: 80,
-    paddingLeft: responsiveWidth(7),
-    width: '100%',
-    color: 'blue',
+    marginBottom: 40,
+    textAlign: 'center',
+    color: '#4169E1', // royal blue color
     fontSize: 34,
     fontWeight: 'bold'
   },
-  itemContainer: {
-    backgroundColor: '#fff', // white background
+  tripButton: {
+    backgroundColor: '#fff',
     padding: 20,
-    borderRadius: 10,
+    borderRadius: 15,
     borderWidth: 1,
-    borderColor: '#ccc', // light grey border
+    borderColor: '#e0e0e0',
     marginBottom: 20,
+    height: 80,
+    justifyContent: 'center',
+    // Add shadow for iOS
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3.84,
+    // Add elevation for Android
+    elevation: 5,
   },
-  bodyText: {
-    fontSize: 18,
+  tripButtonText: {
+    fontSize: 24,
+    fontWeight: '600',
+    color: '#333',
   },
 });
