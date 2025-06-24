@@ -8,12 +8,18 @@ import TabBarBackground from '@/components/ui/TabBarBackground';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import {AuthContextProvider} from '../../components/AuthContext'
+import { useAuth } from '../../components/AuthContext';
+import AuthScreen from '../../components/AuthScreen';
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
+  const { isAuthenticated } = useAuth();
+
+  if (!isAuthenticated) {
+    return <AuthScreen />;
+  }
 
   return (
-    <AuthContextProvider>
     <Tabs
       screenOptions={{
         tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
@@ -50,6 +56,5 @@ export default function TabLayout() {
         }}
       />
     </Tabs>
-    </AuthContextProvider>
   );
 }
