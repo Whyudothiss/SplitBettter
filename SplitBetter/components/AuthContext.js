@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { createUserWithEmailAndPassword, onAuthStateChanged } from 'firebase/auth';
+import { createUserWithEmailAndPassword, onAuthStateChanged, signOut, signInWithEmailAndPassword } from 'firebase/auth';
 import {doc, getDoc, setDoc} from 'firebase/firestore'
 import { db, auth } from '../firebaseConfig';
 
@@ -26,17 +26,22 @@ export const AuthContextProvider = ({children}) => {
 
     const login = async(email, password) => {
         try{
-          // TODO: implement login logic
+          const response = await signInWithEmailAndPassword(auth, email, password)
+
+          return {success: true};
         }catch(e){
-          // TODO: handle error
+          let msg = e.message;
+          if(msg.includes('(auth/invalid-email)')) msg='Invalid Email'
+          return {success: false, msg};
         }
     };
     
     const logout = async() => {
         try{
-          // TODO: implement logout logic
+          await signOut(auth);
+          return {success: true};
         }catch(e){
-          // TODO: handle error
+          return {success: false, msg: e.message, error: e}
         }
     };
 
@@ -52,6 +57,7 @@ export const AuthContextProvider = ({children}) => {
         }catch(e){
           let msg = e.message;
           if(msg.includes('(auth/invalid-email)')) msg='Invalid Email'
+          if(msg.includes('(auth/email-already-in-use)')) msg='This Email Is Already In Use'
           return {success: false, msg};
         }
     };
