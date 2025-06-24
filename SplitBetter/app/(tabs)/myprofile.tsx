@@ -30,22 +30,22 @@ export default function ProfileScreen() {
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,  // This ensures the View takes up full screen
-    alignItems: 'center',  // Center the content horizontally
+    flex: 1,
+    alignItems: 'center',
     padding: 20,
   },
   profileText: {
     fontSize: 24,
     fontWeight: 'bold',
-    marginBottom: 20,  // Add space between the profile info and sign out button
+    marginBottom: 20,
   },
   signOutButton: {
-    backgroundColor: '#FF6347', // Red color for the button
+    backgroundColor: '#FF6347',
     padding: 15,
     borderRadius: 10,
-    width: '100%', // Make button take up full width or adjust as needed
-    alignItems: 'center', // Center text within button
-    marginBottom: 20,  // Add margin for spacing
+    width: '100%',
+    alignItems: 'center',
+    marginBottom: 20,
   },
   signOutText: {
     color: '#fff',
