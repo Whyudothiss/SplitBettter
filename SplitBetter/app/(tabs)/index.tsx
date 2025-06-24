@@ -2,13 +2,21 @@
 // //import './global.css';
 import { View, Text, Image, Button, TouchableOpacity, TextInput, Platform, StyleSheet } from 'react-native';
 import { responsiveWidth } from 'react-native-responsive-dimensions';
-
+import React from 'react';
 import { HelloWave } from '@/components/HelloWave';
 import ParallaxScrollView from '@/components/ParallaxScrollView';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
+import { useAuth } from '../../components/AuthContext';
+import AuthScreen from '../../components/AuthScreen';
 
 export default function HomeScreen() {
+  const {isAuthenticated} = useAuth();
+  // Show AuthScreen if not authenticated
+  if (!isAuthenticated) {
+    return <AuthScreen />;
+  }
+  
   return (
     <View style={styles.container}>
       <Text style={styles.header}>SplitBetter</Text>
@@ -22,6 +30,7 @@ export default function HomeScreen() {
       </TouchableOpacity>
     </View>
   );
+  
 }
 
 const styles = StyleSheet.create({
