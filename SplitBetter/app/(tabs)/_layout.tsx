@@ -9,7 +9,6 @@ import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useAuth } from '../../components/AuthContext';
 import AuthScreen from '../../components/AuthScreen';
-import CreateSplitModal from '../../components/CreateSplitModal'; 
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
