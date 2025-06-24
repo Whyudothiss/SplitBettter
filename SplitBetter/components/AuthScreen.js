@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { View, Text, TextInput, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
 import { widthPercentageToDP as wp, heightPercentageToDP as hp } from 'react-native-responsive-screen';
 import { StatusBar } from 'expo-status-bar';
@@ -7,44 +7,80 @@ import { useAuth } from './AuthContext';
 
 export default function AuthScreen() {
   const [isSignIn, setIsSignIn] = useState(true);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [name, setName] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   
-  const { signIn, signUp } = useAuth();
+  // Using useRef for form inputs (tutorial approach)
+  const emailRef = useRef('');
+  const passwordRef = useRef('');
+  const usernameRef = useRef('');
+  
+  const authContext = useAuth();
+  console.log('Auth context:', authContext); // Debug log
+  const { login, register } = authContext;
 
-  const handleAuth = async () => {
-    if (!email || !password || (!isSignIn && !name)) {
-      Alert.alert('Error', 'Please fill in all fields');
+  const handleSignIn = async () => {
+    if(!emailRef.current || !passwordRef.current) {
+      Alert.alert('Sign In', 'Please fill in all the fields!');
       return;
     }
-
     setIsLoading(true);
-    
-    try {
-      let result;
-      if (isSignIn) {
-        result = await signIn(email, password);
-      } else {
-        result = await signUp(email, password, name);
-      }
 
-      if (!result.success) {
-        Alert.alert('Error', result.error || 'Authentication failed');
+    try {
+      let response = await login(emailRef.current, passwordRef.current);
+      setIsLoading(false);
+
+      console.log('got result: ', response);
+      if(!response.success){
+        Alert.alert('Sign In', response.msg);
       }
     } catch (error) {
-      Alert.alert('Error', 'Something went wrong. Please try again.');
-    } finally {
       setIsLoading(false);
+      Alert.alert('Sign In', 'An error occurred. Please try again.');
+      console.error('Sign in error:', error);
+    }
+  };
+
+  const handleRegister = async () => {
+    console.log('handleRegister called');
+    console.log('register function:', register);
+    console.log('typeof register:', typeof register);
+    
+    if(!emailRef.current || !passwordRef.current || !usernameRef.current) {
+      Alert.alert('Sign Up', 'Please fill in all the fields!');
+      return;
+    }
+    setIsLoading(true);
+
+    try {
+      // Register with email, password, and username only
+      let response = await register(emailRef.current, passwordRef.current, usernameRef.current);
+      setIsLoading(false);
+
+      console.log('got result: ', response);
+      if(!response.success){
+        Alert.alert('Sign Up', response.msg);
+      }
+    } catch (error) {
+      setIsLoading(false);
+      Alert.alert('Sign Up', 'An error occurred. Please try again.');
+      console.error('Register error:', error);
+    }
+  };
+
+  const handleAuth = () => {
+    if (isSignIn) {
+      handleSignIn();
+    } else {
+      handleRegister();
     }
   };
 
   const toggleMode = () => {
     setIsSignIn(!isSignIn);
-    setEmail('');
-    setPassword('');
-    setName('');
+    // Clear the ref values
+    emailRef.current = '';
+    passwordRef.current = '';
+    usernameRef.current = '';
   };
 
   return (
@@ -66,7 +102,7 @@ export default function AuthScreen() {
             {isSignIn ? 'Sign In' : 'Sign Up'}
           </Text>
           
-          {/* Name input for Sign Up */}
+          {/* Username input for Sign Up */}
           {!isSignIn && (
             <View style={{
               height: hp(7),
@@ -80,10 +116,9 @@ export default function AuthScreen() {
               <Octicons name="person" size={hp(2.7)} color='gray' />
               <TextInput 
                 style={{ fontSize: hp(2), flex: 1, fontWeight: '600', color: '#4B5563' }}
-                placeholder='Full Name' 
+                placeholder='Username' 
                 placeholderTextColor={'gray'}
-                value={name}
-                onChangeText={setName}
+                onChangeText={(text) => { usernameRef.current = text; }}
               />
             </View>
           )}
@@ -103,8 +138,7 @@ export default function AuthScreen() {
               style={{ fontSize: hp(2), flex: 1, fontWeight: '600', color: '#4B5563' }}
               placeholder='Email Address' 
               placeholderTextColor={'gray'}
-              value={email}
-              onChangeText={setEmail}
+              onChangeText={(text) => { emailRef.current = text; }}
               keyboardType="email-address"
               autoCapitalize="none"
             />
@@ -125,8 +159,7 @@ export default function AuthScreen() {
               style={{ fontSize: hp(2), flex: 1, fontWeight: '600', color: '#4B5563' }}
               placeholder='Password' 
               placeholderTextColor={'gray'}
-              value={password}
-              onChangeText={setPassword}
+              onChangeText={(text) => { passwordRef.current = text; }}
               secureTextEntry
             />
           </View>

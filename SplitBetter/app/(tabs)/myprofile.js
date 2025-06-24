@@ -10,4 +10,5 @@ export default function ProfileScreen() {
 if (!isAuthenticated) {
     return <AuthScreen />;
   }
+return;  
 }
