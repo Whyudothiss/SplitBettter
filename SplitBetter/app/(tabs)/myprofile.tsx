@@ -13,7 +13,7 @@ export default function ProfileScreen() {
   return (
     <View style={styles.container}>
       {/* Your Profile content */}
-      <Text style={styles.profileText}>Welcome, {user?.name}</Text>
+      <Text style={styles.profileText}>Welcome, {user?.displayName}</Text>
 
       {/* Sign Out Button at the bottom */}
       <Pressable style={styles.signOutButton} onPress={handleLogout}>
