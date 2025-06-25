@@ -7,7 +7,6 @@ import { IconSymbol } from '@/components/ui/IconSymbol';
 import TabBarBackground from '@/components/ui/TabBarBackground';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
-import {AuthContextProvider} from '../../components/AuthContext'
 import { useAuth } from '../../components/AuthContext';
 import AuthScreen from '../../components/AuthScreen';
 import CreateSplitModal from '../../components/CreateSplitModal'; 
