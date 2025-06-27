@@ -8,12 +8,7 @@ export default function ProfileScreen() {
   
   const handleLogout = async () => {
     await logout();
-  };
-
-  // Show auth screen if not authenticated
-  if (!isAuthenticated) {
-    return <AuthScreen />;
-  } 
+  }; 
 
   return (
     <View style={styles.container}>

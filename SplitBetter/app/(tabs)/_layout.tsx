@@ -9,7 +9,7 @@ import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useAuth } from '../../components/AuthContext';
 import AuthScreen from '../../components/AuthScreen';
-import CreateSplitModal from '../../components/CreateSplitModal'; 
+import CreateSplitModal from '@/components/CreateSplitModal'; 
 import { View } from 'react-native';
 
 export default function TabLayout() {

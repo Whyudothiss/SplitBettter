@@ -1,3 +1,4 @@
+// utils/firestore.ts
 import { 
     collection, 
     addDoc, 
@@ -7,8 +8,9 @@ import {
     orderBy, 
     serverTimestamp 
   } from 'firebase/firestore';
-  import { db } from '../firebaseConfig'; // Adjust path to Firebase config
+  import { db } from '../firebaseConfig'; // Adjust path to your Firebase config
   import { auth } from '../firebaseConfig'; // For getting current user
+  
   
   export interface Split {
     id?: string;
