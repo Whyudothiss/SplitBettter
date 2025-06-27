@@ -474,8 +474,8 @@ import { collection, query, orderBy, getDocs, doc, getDoc } from 'firebase/fires
 import { db } from '@/firebaseConfig';
 import { useAuth } from '@/components/AuthContext';
 import AddExpenseModal from './AddExpenseModal';
-import BalanceScreen from '@/components/BalanceScreen';
-import Photos from '@/components/Photos';
+import BalanceScreen from './BalanceScreen';
+import Photos from './Photos';
 
 interface Split {
   id: string;
@@ -483,7 +483,7 @@ interface Split {
   currency: string;
   budget: number;
   participants: string[];
-  participantsNames?: Record<string, string>; // Optional mapping for user-friendly names
+  participantsNames?: Record<string, string>;
   createdAt: any;
 }
 
@@ -513,6 +513,7 @@ export default function SplitDetailsScreen({ splitId, onBack }: SplitDetailsScre
   const [userExpenses, setUserExpenses] = useState(0);
   const [showAddExpenseModal, setShowAddExpenseModal] = useState(false);
   const [activeTab, setActiveTab] = useState<TabType>('expenses');
+  const [participantsNames, setParticipantsNames] = useState<Record<string, string>>({});
   const { user } = useAuth();
 
   const fetchSplitData = async () => {
@@ -523,10 +524,35 @@ export default function SplitDetailsScreen({ splitId, onBack }: SplitDetailsScre
     try {
       const splitDoc = await getDoc(doc(db, 'splits', splitId));
       if (splitDoc.exists()) {
+        const splitData = splitDoc.data() as Split;
         setSplit({
           id: splitDoc.id,
-          ...splitDoc.data(),
-        } as Split);
+          ...splitData,
+        });
+
+        // Prefer participantsNames in split doc if present
+        if (splitData.participantsNames) {
+          setParticipantsNames(splitData.participantsNames);
+        } else {
+          // Fetch usernames from users collection
+          const names: Record<string, string> = {};
+          await Promise.all(
+            splitData.participants.map(async (uid) => {
+              try {
+                const userDoc = await getDoc(doc(db, "users", uid));
+                if (userDoc.exists()) {
+                  const userData = userDoc.data();
+                  names[uid] = userData.username || userData.name || uid;
+                } else {
+                  names[uid] = uid;
+                }
+              } catch {
+                names[uid] = uid;
+              }
+            })
+          );
+          setParticipantsNames(names);
+        }
       }
 
       const expensesQuery = query(
@@ -597,6 +623,9 @@ export default function SplitDetailsScreen({ splitId, onBack }: SplitDetailsScre
     );
   }
 
+  // Inject the participantsNames into split for BalanceScreen
+  const splitWithNames = { ...split, participantsNames };
+
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#f5f5f5" />
@@ -607,10 +636,7 @@ export default function SplitDetailsScreen({ splitId, onBack }: SplitDetailsScre
           <Text style={styles.backArrow}>←</Text>
         </TouchableOpacity>
         <Text style={styles.headerTitle}>{split.title}</Text>
-        <View style={styles.headerRight}>
-          <View style={styles.dot} />
-          <View style={styles.dot} />
-        </View>
+        <View style={styles.headerRight} />
       </View>
 
       {/* Tab Navigation */}
@@ -670,7 +696,7 @@ export default function SplitDetailsScreen({ splitId, onBack }: SplitDetailsScre
                   <View style={styles.expenseContent}>
                     <Text style={styles.expenseTitle}>{expense.title}</Text>
                     <Text style={styles.expensePaidBy}>
-                      Paid by {expense.paidBy === user?.uid ? 'Me' : expense.paidByName || 'Someone'}
+                      Paid by {expense.paidBy === user?.uid ? 'Me' : expense.paidByName || participantsNames[expense.paidBy] || 'Someone'}
                     </Text>
                   </View>
                   <Text style={styles.expenseAmount}>
@@ -697,7 +723,7 @@ export default function SplitDetailsScreen({ splitId, onBack }: SplitDetailsScre
       )}
 
       {activeTab === 'balance' && (
-        <BalanceScreen split={split} expenses={expenses} />
+        <BalanceScreen split={splitWithNames} expenses={expenses} />
       )}
 
       {activeTab === 'photos' && (
@@ -719,11 +745,33 @@ const styles = StyleSheet.create({
   backButtonHeader: { padding: 5 },
   backArrow: { fontSize: 24, color: '#333' },
   headerTitle: { fontSize: 20, fontWeight: '600', color: '#333' },
-  headerRight: { flexDirection: 'row', gap: 8 },
+  headerRight: { width: 34 }, // Same width as backButtonHeader to center the title
   dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#666' },
-  tabContainer: { flexDirection: 'row', paddingHorizontal: 20, marginBottom: 20 },
-  tab: { paddingHorizontal: 20, paddingVertical: 8, borderRadius: 20, marginRight: 10 },
-  activeTab: { backgroundColor: '#fff', borderWidth: 1, borderColor: '#e0e0e0' },
+  tabContainer: { 
+    flexDirection: 'row', 
+    paddingHorizontal: 20, 
+    marginBottom: 20,
+    justifyContent: 'center',
+    backgroundColor: '#e8e8e8',
+    borderRadius: 25,
+    marginHorizontal: 20,
+    padding: 4
+  },
+  tab: { 
+    flex: 1,
+    paddingVertical: 10, 
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  activeTab: { 
+    backgroundColor: '#fff',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2
+  },
   tabText: { fontSize: 14, color: '#666', fontWeight: '500' },
   activeTabText: { color: '#333' },
   summaryContainer: { flexDirection: 'row', paddingHorizontal: 20, gap: 15, marginBottom: 30 },
