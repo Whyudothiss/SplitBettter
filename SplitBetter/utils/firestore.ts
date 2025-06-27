@@ -10,7 +10,7 @@ import {
   } from 'firebase/firestore';
   import { db } from '../firebaseConfig'; // Adjust path to your Firebase config
   import { auth } from '../firebaseConfig'; // For getting current user
-  
+
   
   export interface Split {
     id?: string;
@@ -89,14 +89,16 @@ import {
   };
   
   // Add expense to a split
-  export const addExpense = async (expenseData: Omit<Expense, 'id' | 'createdAt'>) => {
+  export const addExpense = async (splitId: string, expenseData: Omit<Expense, 'id' | 'createdAt' | 'splitId'>) => {
     try {
-      const expense: Omit<Expense, 'id'> = {
+      const expenses = {
         ...expenseData,
         createdAt: serverTimestamp(),
       };
-  
-      const docRef = await addDoc(collection(db, 'expenses'), expense);
+      // Get a reference to the expenses subcollection inside the given split
+      const expensesRef = collection(db, "splits", splitId, "expenses")
+      // Add the expense to the subcollection
+      const docRef = await addDoc(expensesRef, expenses);
       console.log('Expense added with ID: ', docRef.id);
       return docRef.id;
     } catch (error) {
@@ -109,8 +111,7 @@ import {
   export const getSplitExpenses = async (splitId: string) => {
     try {
       const q = query(
-        collection(db, 'expenses'),
-        where('splitId', '==', splitId),
+        collection(db, "splits", splitId, "expenses"),
         orderBy('createdAt', 'desc')
       );
   
