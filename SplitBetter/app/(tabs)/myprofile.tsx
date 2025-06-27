@@ -90,6 +90,24 @@ export default function ProfileScreen() {
       setDebtMap(newDebtMap);
 
       // Fetch username for all userIds in the debtMap
+      const idList = Array.from(new Set([...Object.keys(newDebtMap), ...Array.from(userIdSet)])).filter(id => id !== user.uid);
+      const names: { [userId: string]: string } = {};
+      await Promise.all(idList.map(async (uid) => {
+        try {
+          const userDoc = await getDoc(doc(db, "users", uid));
+          if (userDoc.exists()) {
+            const userData = userDoc.data();
+            names[uid] = userData.username || userData.name || uid;
+          } else {
+            names[uid] = uid;
+          }
+        } catch {
+          names[uid] = uid;
+        }
+      }));
+      setUsernames(names);
+
+      setLoading(false);
     };
 
     fetchData();
@@ -137,11 +155,26 @@ export default function ProfileScreen() {
       )}
       {selectedTab === "Debt Settlement" && (
         <ScrollView>
-          {debtSettlement.length === 0 ? (
+          {Object.keys(debtMap).length === 0 ? (
             <View>
-              <Text>No debt settlements to show</Text>
+              <Text style={styles.cardLabel}>No debt settlements to show</Text>
             </View>
-          ) : ()}
+          ) : (
+            Object.entries(debtMap).map(([otherUserId, amount]) => {
+              if (Math.abs(amount) < 0.01) return null; // skip settled
+              const displayName = usernames[otherUserId] || otherUserId;
+              return (
+                <View key={otherUserId} style={styles.card}>
+                  <Text style={styles.cardLabel}>
+                    {amount < 0 ? `You owe ${displayName}` : `${displayName} owes you`}
+                  </Text>
+                  <Text style={[styles.cardAmount, { color: amount < 0 ? '#e74c3c' : '#27ae60' }]}>
+                    ${Math.abs(amount).toFixed(2)}
+                  </Text>
+                </View>
+              );
+            })
+          )}
         </ScrollView>
       )}
 
