@@ -1,14 +1,13 @@
-import React, {useState} from 'react';
+import React, {useState, useEffect} from 'react';
 import {addExpense} from '../utils/firestore';
 import {View, StyleSheet, ScrollView, TouchableOpacity, Text, TextInput, Modal} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '@/firebaseConfig';
+import { useAuth } from '@/components/AuthContext';
 
-// Dummy variables
+// Categories data 
 const categories = ["Transport", "Food", "Entertainment", "Others"];
-const participants = [
-  { id: '1', name: 'John (Me)' },
-  { id: '2', name: 'Tim' },
-];
 
 const currencies = [
     { code: 'SGD', label: 'SGD $' },
@@ -16,7 +15,12 @@ const currencies = [
     { code: 'EUR', label: 'EURO €' },
     { code: 'JPY', label: 'YEN ¥' },
     { code: 'GBP', label: 'GBP £' },
-  ];
+];
+
+interface Participant {
+  id: string;
+  name: string;
+}
 
 interface AddExpenseModalProps {
   splitId: string;
@@ -24,6 +28,11 @@ interface AddExpenseModalProps {
 }
 
 export default function AddExpenseModal({ splitId, onClose }: AddExpenseModalProps) {
+    const { user } = useAuth();
+    const [participants, setParticipants] = useState<Participant[]>([]);
+    const [loading, setLoading] = useState(false);
+    const [fetchingData, setFetchingData] = useState(true);
+
     const [title, setTitle] = useState('');
     const [amount, setAmount] = useState('');
     const [currency, setCurrency] = useState(currencies[0]);
@@ -32,20 +41,73 @@ export default function AddExpenseModal({ splitId, onClose }: AddExpenseModalPro
     const [category, setCategory] = useState('');
     const [categoryModal, setCategoryModal] = useState(false);
 
-    const [paidBy, setPaidBy] = useState(participants[0].name);
+    const [paidBy, setPaidBy] = useState('');
     const [paidByModal, setPaidByModal] = useState(false);
 
     const [splitType, setSplitType] = useState("Equally");
     const [splitTypeModal, setSplitTypeModal] = useState(false);
 
-    const [selectedParticipants, setSelectedParticipants] = useState(participants.map(p => p.id));
-    const [loading, setLoading] = useState(false);
+    const [selectedParticipants, setSelectedParticipants] = useState<string[]>([]);
+
+    // Fetch split data to get actual participants
+    useEffect(() => {
+        const fetchSplitData = async () => {
+            try {
+                const splitDoc = await getDoc(doc(db, 'splits', splitId));
+                if (splitDoc.exists()) {
+                    const splitData = splitDoc.data();
+                    
+                    // Create participants array with actual user IDs and names
+                    // You'll need to modify this based on how participant data is stored in your split
+                    const participantsList: Participant[] = [];
+                    
+                    // Assuming participants are stored as user IDs in the split document
+                    // and you have user names stored somewhere (you might need to fetch user details)
+                    if (splitData.participants) {
+                        for (const participantId of splitData.participants) {
+                            if (participantId === user?.uid) {
+                                participantsList.push({
+                                    id: participantId,
+                                    name: 'Me'
+                                });
+                            } else {
+                                // You might need to fetch user names from a users collection
+                                // For now, using a placeholder
+                                participantsList.push({
+                                    id: participantId,
+                                    name: `User ${participantId.slice(0, 6)}` // Temporary solution
+                                });
+                            }
+                        }
+                    }
+                    
+                    setParticipants(participantsList);
+                    setSelectedParticipants(participantsList.map(p => p.id));
+                    
+                    // Set default paid by to current user
+                    const currentUserParticipant = participantsList.find(p => p.id === user?.uid);
+                    if (currentUserParticipant) {
+                        setPaidBy(currentUserParticipant.id); // Store ID, not name
+                    }
+                }
+            } catch (error) {
+                console.error('Error fetching split data:', error);
+            } finally {
+                setFetchingData(false);
+            }
+        };
+
+        if (splitId && user) {
+            fetchSplitData();
+        }
+    }, [splitId, user]);
 
     const toggleParticipants = (id: string) => {
         setSelectedParticipants(selected => 
             selected.includes(id)
-            ? selected.filter(pid => pid != id) // If already selected remove from array
-            : [...selected, id]); // If not selected add to the array
+            ? selected.filter(pid => pid !== id)
+            : [...selected, id]
+        );
     }
     
     const handleAddExpense = async () => {
@@ -56,12 +118,15 @@ export default function AddExpenseModal({ splitId, onClose }: AddExpenseModalPro
 
         setLoading(true);
         try {
+            const paidByParticipant = participants.find(p => p.id === paidBy);
+            
             await addExpense(splitId, {
               title: title.trim(),
               amount: parseFloat(amount),
               currency: currency.code,
               category,
-              paidBy,
+              paidBy: paidBy, // Store user ID
+              paidByName: paidByParticipant?.name || 'Unknown', // Store name for display
               participants: selectedParticipants,
               splitType,
             });
@@ -72,7 +137,10 @@ export default function AddExpenseModal({ splitId, onClose }: AddExpenseModalPro
             setAmount('');
             setCurrency(currencies[0]);
             setCategory('');
-            setPaidBy(participants[0].name);
+            const currentUserParticipant = participants.find(p => p.id === user?.uid);
+            if (currentUserParticipant) {
+                setPaidBy(currentUserParticipant.id);
+            }
             setSplitType("Equally");
             setSelectedParticipants(participants.map(p => p.id));
             
@@ -84,6 +152,14 @@ export default function AddExpenseModal({ splitId, onClose }: AddExpenseModalPro
         } finally {
             setLoading(false);
         }
+    }
+
+    if (fetchingData) {
+        return (
+            <View style={[styles.container, styles.loadingContainer]}>
+                <Text>Loading...</Text>
+            </View>
+        );
     }
 
     return (
@@ -171,7 +247,9 @@ export default function AddExpenseModal({ splitId, onClose }: AddExpenseModalPro
             <View style={styles.section}>
                 <Text style={styles.label}>Paid By</Text>
                 <TouchableOpacity style={styles.dropDown} onPress={() => setPaidByModal(true)}>
-                    <Text style={styles.dropDownText}>{paidBy}</Text>
+                    <Text style={styles.dropDownText}>
+                        {participants.find(p => p.id === paidBy)?.name || 'Select Participant'}
+                    </Text>
                     <Ionicons name="chevron-down" size={20} color="#666" />
                 </TouchableOpacity>
             </View>
@@ -181,7 +259,7 @@ export default function AddExpenseModal({ splitId, onClose }: AddExpenseModalPro
                 <TouchableOpacity style={styles.modalOverlay} onPress={() => setPaidByModal(false)} activeOpacity={1}>
                     <View style={styles.modalBox}>
                         {participants.map(p => (
-                            <TouchableOpacity key={p.id} style={styles.modalItem} onPress={() => {setPaidBy(p.name), setPaidByModal(false)}}>
+                            <TouchableOpacity key={p.id} style={styles.modalItem} onPress={() => {setPaidBy(p.id), setPaidByModal(false)}}>
                                 <Text style={{fontSize: 18}}>{p.name}</Text>
                             </TouchableOpacity>
                         ))}
@@ -206,7 +284,6 @@ export default function AddExpenseModal({ splitId, onClose }: AddExpenseModalPro
                             <TouchableOpacity style={styles.modalItem} onPress={() => { setSplitType("Equally"),setSplitTypeModal(false)}}>
                                 <Text style={{fontSize: 18}}>Equally</Text>
                             </TouchableOpacity>
-                            {/* Can add more split types in the future */}
                         </View>
                     </TouchableOpacity>
                 </Modal>
@@ -245,6 +322,7 @@ export default function AddExpenseModal({ splitId, onClose }: AddExpenseModalPro
 
 const styles = StyleSheet.create({
     container: {flex: 1, backgroundColor: '#fff'},
+    loadingContainer: {justifyContent: 'center', alignItems: 'center'},
     header: {flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',paddingTop: 60, paddingHorizontal: 20, paddingBottom:20, borderBottomWidth: 1, borderBottomColor: '#f0f0f0'},
     headerTitle: {fontSize: 18, fontWeight:'bold', color: '#000'},
     content: {flex: 1, paddingHorizontal: 20},
