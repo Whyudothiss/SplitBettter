@@ -18,7 +18,12 @@ const currencies = [
     { code: 'GBP', label: 'GBP £' },
   ];
 
-export default function AddExpense() {
+interface AddExpenseModalProps {
+  splitId: string;
+  onClose: () => void;
+}
+
+export default function AddExpenseModal({ splitId, onClose }: AddExpenseModalProps) {
     const [title, setTitle] = useState('');
     const [amount, setAmount] = useState('');
     const [currency, setCurrency] = useState(currencies[0]);
@@ -43,32 +48,48 @@ export default function AddExpense() {
             : [...selected, id]); // If not selected add to the array
     }
     
-    // const handleAddExpense = () => {
-    //     setLoading(true);
-    //     try {
-    //         await addExpense(splitId, {
-    //           title,
-    //           amount: parseFloat(amount),
-    //           currency: currency.code,
-    //           category,
-    //           paidBy,
-    //           participants: selectedParticipants,
-    //           splitType,
-    //         });
-    //         alert('Expense added!');
-    //         // Optionally clear/reset form or navigate away here
-    //     }catch (error) {
-    //         alert("Failed to add expense");
-    //         console.error(error);
-    //     } finally {
-    //         setLoading(false);
-    //     }
-    // }
+    const handleAddExpense = async () => {
+        if (!title.trim() || !amount.trim()) {
+            alert('Please fill in both title and amount');
+            return;
+        }
+
+        setLoading(true);
+        try {
+            await addExpense(splitId, {
+              title: title.trim(),
+              amount: parseFloat(amount),
+              currency: currency.code,
+              category,
+              paidBy,
+              participants: selectedParticipants,
+              splitType,
+            });
+            alert('Expense added successfully!');
+            
+            // Reset form
+            setTitle('');
+            setAmount('');
+            setCurrency(currencies[0]);
+            setCategory('');
+            setPaidBy(participants[0].name);
+            setSplitType("Equally");
+            setSelectedParticipants(participants.map(p => p.id));
+            
+            // Close modal
+            onClose();
+        } catch (error) {
+            alert("Failed to add expense");
+            console.error(error);
+        } finally {
+            setLoading(false);
+        }
+    }
 
     return (
        <View style={styles.container}>
         <View style={styles.header}>
-            <TouchableOpacity>
+            <TouchableOpacity onPress={onClose}>
                 <Ionicons name="chevron-back" size={24} color="#000" />
             </TouchableOpacity>
             <Text style={styles.headerTitle}>Add Expense</Text>
@@ -81,7 +102,12 @@ export default function AddExpense() {
             <View style={styles.section}>
                 <Text style={styles.label}>Title</Text>
                 <View style={styles.titleInputContainer}>
-                    <TextInput style={styles.titleInput} placeholder="E.g Drinks" value={title} onChangeText={setTitle} />
+                    <TextInput 
+                        style={styles.titleInput} 
+                        placeholder="E.g Drinks" 
+                        value={title} 
+                        onChangeText={setTitle} 
+                    />
                     <TouchableOpacity>
                         <Ionicons name="camera-outline" size={48} color="black" />
                     </TouchableOpacity>
@@ -96,13 +122,19 @@ export default function AddExpense() {
                         <Text style={styles.currencyText}>{currency.label}</Text>
                         <Ionicons name="chevron-down" size={16} color="#666" style={{ marginLeft: 4 }} />
                     </TouchableOpacity>
-                    <TextInput style={styles.titleInput} placeholder='0.00' value={amount} keyboardType="decimal-pad" onChangeText={setAmount} />
+                    <TextInput 
+                        style={styles.titleInput} 
+                        placeholder='0.00' 
+                        value={amount} 
+                        keyboardType="decimal-pad" 
+                        onChangeText={setAmount} 
+                    />
                 </View>
             </View>
 
             {/* Currency Modal */} 
             <Modal visible={currencyModal} transparent animationType='slide'>
-                <TouchableOpacity style={styles.modalOverlay} onPress={() =>setCurrencyModal(false)} activeOpacity={10}>
+                <TouchableOpacity style={styles.modalOverlay} onPress={() =>setCurrencyModal(false)} activeOpacity={1}>
                     <View style={styles.modalBox}>
                         {currencies.map(cur => (
                             <TouchableOpacity key={cur.code} style={styles.modalItem} onPress={() => {setCurrency(cur), setCurrencyModal(false)}}>
@@ -117,7 +149,7 @@ export default function AddExpense() {
             <View style={styles.section}>
                 <Text style={styles.label}>Category</Text>
                 <TouchableOpacity style={styles.dropDown} onPress={() => setCategoryModal(true)}>
-                    <Text style={styles.dropDownText}>{category}</Text>
+                    <Text style={styles.dropDownText}>{category || 'Select Category'}</Text>
                     <Ionicons name="chevron-down" size={20} color="#666" />
                 </TouchableOpacity>
             </View>
@@ -181,9 +213,13 @@ export default function AddExpense() {
 
                 {/* List of people in Split */}
                 {participants.map(p => (
-                    <TouchableOpacity key={p.id} style={[styles.participantRow, selectedParticipants.includes(p.id) && styles.participantRowSelected]} onPress={() => toggleParticipants(p.id)}>
+                    <TouchableOpacity 
+                        key={p.id} 
+                        style={[styles.participantRow, selectedParticipants.includes(p.id) && styles.participantRowSelected]} 
+                        onPress={() => toggleParticipants(p.id)}
+                    >
                         <Text style={styles.checkbox}>
-                            {selectedParticipants.includes(p.id) ? "tick" : "No Tick"}
+                            {selectedParticipants.includes(p.id) ? "✓" : "○"}
                         </Text>
                         <Text style={styles.participantName}>{p.name}</Text>
                     </TouchableOpacity>
@@ -191,8 +227,14 @@ export default function AddExpense() {
             </View>
 
             {/* Add Expense Button */}
-            <TouchableOpacity style={styles.addButton}>
-                <Text style={styles.addButtonText}>Add Expenses</Text>
+            <TouchableOpacity 
+                style={[styles.addButton, loading && styles.addButtonDisabled]} 
+                onPress={handleAddExpense}
+                disabled={loading}
+            >
+                <Text style={styles.addButtonText}>
+                    {loading ? 'Adding Expense...' : 'Add Expense'}
+                </Text>
             </TouchableOpacity>
 
         </ScrollView>
@@ -218,7 +260,8 @@ const styles = StyleSheet.create({
     splitsHeader: {flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16},
     splitTypeButton: {flexDirection: 'row', alignItems:'center', gap: 4},
     addButton: {backgroundColor: '#4169E1', borderRadius: 12, paddingVertical: 16, marginHorizontal: 20, marginBottom: 40, alignItems: 'center'},
-    addButtonText: {fontSize: 18, fontWeight: 600, color: '#fff'},
+    addButtonDisabled: {backgroundColor: '#ccc'},
+    addButtonText: {fontSize: 18, fontWeight: '600', color: '#fff'},
     participantRow: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: '#e0e0e0', borderRadius: 8, padding: 10, marginBottom: 8, backgroundColor: 'white' },
     participantRowSelected: { backgroundColor: '#eef5ff', borderColor: '#4169E1' },
     checkbox: { marginRight: 8, fontSize: 18 },
