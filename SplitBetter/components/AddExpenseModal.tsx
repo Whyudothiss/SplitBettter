@@ -63,9 +63,15 @@ export default function AddExpenseModal({ splitId, onClose }: AddExpenseModalPro
                     if (splitData.participants) {
                         for (const participantId of splitData.participants) {
                             if (participantId === user?.uid) {
+                                const userDoc = await getDoc(doc(db, 'users', participantId));
+                                let username = user?.email // fallback
+                                if (userDoc.exists()) {
+                                    const userData = userDoc.data();
+                                    username = userData.username
+                                }
                                 participantsList.push({
                                     id: participantId,
-                                    name: 'Me'
+                                    name: username || 'Unknown'
                                 });
                             } else {
                                 // Fetch user doc
