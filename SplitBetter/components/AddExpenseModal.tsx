@@ -58,11 +58,8 @@ export default function AddExpenseModal({ splitId, onClose }: AddExpenseModalPro
                     const splitData = splitDoc.data();
                     
                     // Create participants array with actual user IDs and names
-                    // You'll need to modify this based on how participant data is stored in your split
                     const participantsList: Participant[] = [];
                     
-                    // Assuming participants are stored as user IDs in the split document
-                    // and you have user names stored somewhere (you might need to fetch user details)
                     if (splitData.participants) {
                         for (const participantId of splitData.participants) {
                             if (participantId === user?.uid) {
@@ -71,11 +68,16 @@ export default function AddExpenseModal({ splitId, onClose }: AddExpenseModalPro
                                     name: 'Me'
                                 });
                             } else {
-                                // You might need to fetch user names from a users collection
-                                // For now, using a placeholder
+                                // Fetch user doc
+                                const userDoc = await getDoc(doc(db, 'users', participantId));
+                                let username = `User ${participantId.slice(0, 6)}`;
+                                if (userDoc.exists()) {
+                                    const userData = userDoc.data();
+                                    username = userData.username || userData.displayName || username;
+                                }
                                 participantsList.push({
                                     id: participantId,
-                                    name: `User ${participantId.slice(0, 6)}` // Temporary solution
+                                    name: username
                                 });
                             }
                         }
@@ -87,7 +89,7 @@ export default function AddExpenseModal({ splitId, onClose }: AddExpenseModalPro
                     // Set default paid by to current user
                     const currentUserParticipant = participantsList.find(p => p.id === user?.uid);
                     if (currentUserParticipant) {
-                        setPaidBy(currentUserParticipant.id); // Store ID, not name
+                        setPaidBy(currentUserParticipant.id); 
                     }
                 }
             } catch (error) {
