@@ -289,7 +289,7 @@ export default function SplitDetailsScreen({ splitId, onBack }: SplitDetailsScre
       )}
 
       {activeTab === 'balance' && (
-        <BalanceScreen split={splitWithNames} expenses={expenses} />
+        <BalanceScreen split={splitWithNames} expenses={expenses} currentUserId={user?.uid}/>
       )}
 
       {activeTab === 'photos' && (
@@ -311,33 +311,11 @@ const styles = StyleSheet.create({
   backButtonHeader: { padding: 5 },
   backArrow: { fontSize: 24, color: '#333' },
   headerTitle: { fontSize: 20, fontWeight: '600', color: '#333' },
-  headerRight: { width: 34 }, // Same width as backButtonHeader to center the title
+  headerRight: { width: 34 }, 
   dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#666' },
-  tabContainer: { 
-    flexDirection: 'row', 
-    paddingHorizontal: 20, 
-    marginBottom: 20,
-    justifyContent: 'center',
-    backgroundColor: '#e8e8e8',
-    borderRadius: 25,
-    marginHorizontal: 20,
-    padding: 4
-  },
-  tab: { 
-    flex: 1,
-    paddingVertical: 10, 
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center'
-  },
-  activeTab: { 
-    backgroundColor: '#fff',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2
-  },
+  tabContainer: { flexDirection: 'row', paddingHorizontal: 20, marginBottom: 20, justifyContent: 'center', backgroundColor: '#e8e8e8', borderRadius: 25, marginHorizontal: 20, padding: 4},
+  tab: { flex: 1, paddingVertical: 10, borderRadius: 20, alignItems: 'center', justifyContent: 'center'},
+  activeTab: { backgroundColor: '#fff', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 2, elevation: 2},
   tabText: { fontSize: 14, color: '#666', fontWeight: '500' },
   activeTabText: { color: '#333' },
   summaryContainer: { flexDirection: 'row', paddingHorizontal: 20, gap: 15, marginBottom: 30 },
@@ -356,13 +334,7 @@ const styles = StyleSheet.create({
   expensePaidBy: { fontSize: 14, color: '#666' },
   expenseAmountContainer: { alignItems: 'flex-end' },
   expenseAmount: { fontSize: 18, fontWeight: '600', color: '#333' },
-  originalAmount: { 
-    fontSize: 12, 
-    color: '#666', 
-    fontStyle: 'italic', 
-    marginTop: 2,
-    textAlign: 'right'
-  },
+  originalAmount: { fontSize: 12, color: '#666', fontStyle: 'italic', marginTop: 2, textAlign: 'right'},
   addButtonContainer: { paddingHorizontal: 20, paddingVertical: 20, paddingBottom: 30 },
   addButton: { backgroundColor: '#333', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 15, borderRadius: 25, gap: 10 },
   addButtonIcon: { fontSize: 24, color: '#fff', fontWeight: 'bold' },
