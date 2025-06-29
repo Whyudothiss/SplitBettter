@@ -76,7 +76,6 @@ export default function SplitDetailsScreen({ splitId, onBack }: SplitDetailsScre
         } as Split;
         setSplit(splitData);
 
-        // Prefer participantsNames in split doc if present
         if (splitData.participantsNames) {
           setParticipantsNames(splitData.participantsNames);
         } else {
@@ -119,7 +118,7 @@ export default function SplitDetailsScreen({ splitId, onBack }: SplitDetailsScre
         
         // Use the amount field which should already be in split currency
         total += expenseData.amount;
-        // Only calculate user share if they were invovled
+        // Only calculate user share if they are participating
         if (expenseData.participants && expenseData.participants.includes(user?.uid)) {
           const userShareOfExpense = expenseData.amount / expenseData.participants.length;
           userShare += userShareOfExpense;
@@ -137,7 +136,6 @@ export default function SplitDetailsScreen({ splitId, onBack }: SplitDetailsScre
 
   useEffect(() => {
     fetchSplitData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [splitId, user]);
 
   const budgetLeft = split ? split.budget - totalExpenses : 0;

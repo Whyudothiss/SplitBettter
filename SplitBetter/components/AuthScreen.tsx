@@ -9,13 +9,12 @@ export default function AuthScreen() {
   const [isSignIn, setIsSignIn] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   
-  // Using useRef for form inputs (tutorial approach)
   const emailRef = useRef('');
   const passwordRef = useRef('');
   const usernameRef = useRef('');
   
   const authContext = useAuth();
-  console.log('Auth context:', authContext); // Debug log
+  console.log('Auth context:', authContext);
   const { login, register } = authContext;
 
   const handleSignIn = async () => {
@@ -52,7 +51,7 @@ export default function AuthScreen() {
     setIsLoading(true);
 
     try {
-      // Register with email, password, and username only
+      // Register with email, password, username 
       let response = await register(emailRef.current, passwordRef.current, usernameRef.current);
       setIsLoading(false);
 
@@ -77,7 +76,6 @@ export default function AuthScreen() {
 
   const toggleMode = () => {
     setIsSignIn(!isSignIn);
-    // Clear the ref values
     emailRef.current = '';
     passwordRef.current = '';
     usernameRef.current = '';

@@ -76,7 +76,7 @@ export default function CreateSplitModal({ visible, onClose, onSplitCreated }: C
     getDocs(collection(db, 'users')).then(snapshot => {
       const users = snapshot.docs
         .map(doc => ({ ...doc.data(), uid: doc.id }))
-        .filter(u => u.uid !== user.uid); // prevent selecting ownself again
+        .filter(u => u.uid !== user.uid);
       setAllUsers(users);
       setLoadingUsers(false);
     });

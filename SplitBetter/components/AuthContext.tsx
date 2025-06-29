@@ -1,5 +1,4 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { 
   createUserWithEmailAndPassword, 
   signInWithEmailAndPassword,
@@ -7,7 +6,7 @@ import {
   onAuthStateChanged,
   User
 } from 'firebase/auth';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, setDoc } from 'firebase/firestore';
 import { db, auth } from '../firebaseConfig';
 
 interface AuthResponse {

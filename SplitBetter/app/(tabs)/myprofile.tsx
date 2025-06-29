@@ -19,7 +19,7 @@ interface SettlementPageProps {
 function SettlementPage({ person, onBack, onSettle }: SettlementPageProps) {
   const { user } = useAuth();
   
-  // Handle case where user is null
+  // Case where user is null
   if (!user) {
     return (
       <View style={styles.settlementContainer}>
@@ -62,8 +62,8 @@ function SettlementPage({ person, onBack, onSettle }: SettlementPageProps) {
         currency: 'SGD',
         category: 'Others',
         splitType: 'Equally',
-        // If current user owes money, they are paying (paidBy = current user)
-        // If current user is owed money, the other person is paying (paidBy = other person)
+        // If current user owes money, they are paying 
+        // If current user is owed money, the other person is paying 
         paidBy: person.amount < 0 ? user.uid : person.userId,
         paidByName: person.amount < 0 ? (user.displayName || user.email) : person.displayName,
         participants: [user.uid, person.userId],

@@ -1,4 +1,3 @@
-import { setLogLevel } from 'firebase/firestore';
 import React from 'react';
 import { View, Text, StyleSheet, FlatList } from 'react-native';
 
@@ -40,9 +39,9 @@ function calculateNetBalances(split: Split, expenses: Expense[]) {
   });
 
   expenses.forEach(expense => {
-    // First find out who participated in each expense
+    // Expense Participants
     const participants = expense.participants || split.participants;
-    const share = expense.amount / participants.length; // For equal splitting first
+    const share = expense.amount / participants.length; // For equal splitting 
 
     // Add to payer's paid
     paid[expense.paidBy] = (paid[expense.paidBy] || 0 ) + expense.amount;
