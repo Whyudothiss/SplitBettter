@@ -287,7 +287,7 @@ export default function SplitDetailsScreen({ splitId, onBack }: SplitDetailsScre
           </Modal>
         </>
       )}
-
+       {/* Add this part to check if there is a valid user */}
       {activeTab === 'balance' && user?.uid && (
         <BalanceScreen split={splitWithNames} expenses={expenses} currentUserId={user?.uid}/>
       )}
