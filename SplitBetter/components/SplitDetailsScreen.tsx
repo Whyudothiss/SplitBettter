@@ -69,8 +69,8 @@ export default function SplitDetailsScreen({ splitId, onBack }: SplitDetailsScre
       if (splitDoc.exists()) {
         const splitData = splitDoc.data() as Split;
         setSplit({
-          id: splitDoc.id,
           ...splitData,
+          id: splitDoc.id,
         });
 
         // Prefer participantsNames in split doc if present
@@ -288,7 +288,7 @@ export default function SplitDetailsScreen({ splitId, onBack }: SplitDetailsScre
         </>
       )}
 
-      {activeTab === 'balance' && (
+      {activeTab === 'balance' && user?.uid && (
         <BalanceScreen split={splitWithNames} expenses={expenses} currentUserId={user?.uid}/>
       )}
 
