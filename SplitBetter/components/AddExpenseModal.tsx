@@ -136,6 +136,7 @@ export default function AddExpenseModal({ splitId, onClose }: AddExpenseModalPro
               paidBy: paidBy, // Store user ID
               paidByName: paidByParticipant?.name || 'Unknown', // Store name for display
               participants: selectedParticipants,
+              participantCount: selectedParticipants.length,
               splitType,
             });
             alert('Expense added successfully!');
