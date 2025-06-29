@@ -37,6 +37,8 @@ interface Expense {
   conversionRate?: number;
   paidBy: string;
   paidByName: string;
+  participants: string[];
+  participantCount?: number;
   splitId: string;
   createdAt: any;
 }
@@ -66,12 +68,13 @@ export default function SplitDetailsScreen({ splitId, onBack }: SplitDetailsScre
     }
     try {
       const splitDoc = await getDoc(doc(db, 'splits', splitId));
+      let splitData: Split | null = null;
       if (splitDoc.exists()) {
-        const splitData = splitDoc.data() as Split;
-        setSplit({
-          ...splitData,
+        splitData = {
+          ...splitDoc.data(),
           id: splitDoc.id,
-        });
+        } as Split;
+        setSplit(splitData);
 
         // Prefer participantsNames in split doc if present
         if (splitData.participantsNames) {
@@ -105,7 +108,7 @@ export default function SplitDetailsScreen({ splitId, onBack }: SplitDetailsScre
       const expensesSnapshot = await getDocs(expensesQuery);
       const expensesData: Expense[] = [];
       let total = 0;
-      let userTotal = 0;
+      let userShare = 0;
       expensesSnapshot.forEach((doc) => {
         const expenseData = {
           id: doc.id,
@@ -116,13 +119,15 @@ export default function SplitDetailsScreen({ splitId, onBack }: SplitDetailsScre
         
         // Use the amount field which should already be in split currency
         total += expenseData.amount;
-        if (expenseData.paidBy === user.uid) {
-          userTotal += expenseData.amount;
+        // Only calculate user share if they were invovled
+        if (expenseData.participants && expenseData.participants.includes(user?.uid)) {
+          const userShareOfExpense = expenseData.amount / expenseData.participants.length;
+          userShare += userShareOfExpense;
         }
       });
       setExpenses(expensesData);
       setTotalExpenses(total);
-      setUserExpenses(userTotal);
+      setUserExpenses(userShare);
     } catch (error) {
       console.error('Error fetching split data:', error);
     } finally {
