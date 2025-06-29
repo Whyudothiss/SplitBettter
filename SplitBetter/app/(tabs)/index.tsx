@@ -33,48 +33,6 @@ function HomeScreen() {
     try {
       let splitsData: Split[] = [];
       
-      // Try different query strategies in order of preference
-      try {
-        // Strategy 1: Get splits where user is a participant (with ordering)
-        const splitsQuery = query(
-          collection(db, 'splits'),
-          where('participants', 'array-contains', user.uid),
-          orderBy('createdAt', 'desc')
-        );
-        
-        const querySnapshot = await getDocs(splitsQuery);
-        querySnapshot.forEach((doc) => {
-          splitsData.push({
-            id: doc.id,
-            ...doc.data()
-          } as Split);
-        });
-        
-        console.log('Successfully fetched splits with participants query');
-      } catch (participantsError) {
-        console.log('Participants query failed, trying createdBy query...');
-        
-        try {
-          // Strategy 2: Get splits created by user (with ordering)
-          const createdByQuery = query(
-            collection(db, 'splits'),
-            where('createdBy', '==', user.uid),
-            orderBy('createdAt', 'desc')
-          );
-          
-          const querySnapshot = await getDocs(createdByQuery);
-          querySnapshot.forEach((doc) => {
-            splitsData.push({
-              id: doc.id,
-              ...doc.data()
-            } as Split);
-          });
-          
-          console.log('Successfully fetched splits with createdBy query');
-        } catch (createdByError) {
-          console.log('CreatedBy query failed, trying simple queries...');
-          
-          // Strategy 3: Simple queries without ordering
           try {
             // Try participants without ordering
             const simpleParticipantsQuery = query(
@@ -110,29 +68,26 @@ function HomeScreen() {
               });
               
               console.log('Successfully fetched splits with simple createdBy query');
-            } catch (simpleCreatedByError) {
-              console.log('All specific queries failed, trying to fetch all splits...');
+            } catch (participantsError) {
+              console.log('Participants query failed, trying createdBy query...');
               
-              // Strategy 4: Get all splits and filter client-side
-              const allSplitsQuery = collection(db, 'splits');
-              const querySnapshot = await getDocs(allSplitsQuery);
+              // Fallback: Get splits created by user jic
+              const createdByQuery = query(
+                collection(db, 'splits'),
+                where('createdBy', '==', user.uid)
+              );
               
+              const querySnapshot = await getDocs(createdByQuery);
               querySnapshot.forEach((doc) => {
-                const data = doc.data();
-                // Filter on client side
-                if (data.participants?.includes(user.uid) || data.createdBy === user.uid) {
-                  splitsData.push({
-                    id: doc.id,
-                    ...data
-                  } as Split);
-                }
+                splitsData.push({
+                  id: doc.id,
+                  ...doc.data()
+                } as Split);
               });
               
-              console.log('Successfully fetched and filtered all splits');
+              console.log('Successfully fetched splits with createdBy query');
             }
           }
-        }
-      }
       
       // Sort client-side by createdAt if we have the data
       splitsData.sort((a, b) => {
@@ -269,109 +224,23 @@ function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f5f5f5',
-  },
-  header: {
-    marginTop: 80,
-    marginBottom: 20,
-    textAlign: 'center',
-    color: '#4169E1',
-    fontSize: 34,
-    fontWeight: 'bold'
-  },
-  scrollView: {
-    flex: 1,
-    paddingHorizontal: 20,
-  },
-  tripButton: {
-    backgroundColor: '#fff',
-    padding: 20,
-    borderRadius: 15,
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
-    marginBottom: 20,
-    minHeight: 80,
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 3.84,
-    elevation: 5,
-  },
-  splitContent: {
-    flex: 1,
-  },
-  tripButtonText: {
-    fontSize: 24,
-    fontWeight: '600',
-    color: '#333',
-    marginBottom: 4,
-  },
-  splitSubtitle: {
-    fontSize: 14,
-    color: '#666',
-    fontWeight: '400',
-  },
-  emptyState: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingVertical: 100,
-  },
-  emptyStateTitle: {
-    fontSize: 24,
-    fontWeight: '600',
-    color: '#333',
-    marginBottom: 8,
-  },
-  emptyStateSubtitle: {
-    fontSize: 16,
-    color: '#666',
-    textAlign: 'center',
-    paddingHorizontal: 40,
-    lineHeight: 22,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#f5f5f5',
-  },
-  loadingText: {
-    marginTop: 10,
-    fontSize: 16,
-    color: '#666',
-  },
-  bottomNav: {
-    flexDirection: 'row',
-    backgroundColor: '#fff',
-    paddingVertical: 10,
-    paddingBottom: 30,
-    borderTopWidth: 1,
-    borderTopColor: '#e0e0e0',
-    justifyContent: 'space-around',
-  },
-  navItem: {
-    alignItems: 'center',
-    flex: 1,
-  },
-  navIcon: {
-    fontSize: 24,
-    marginBottom: 4,
-  },
-  navLabel: {
-    fontSize: 12,
-    color: '#666',
-    fontWeight: '500',
-  },
-  activeNavLabel: {
-    color: '#4169E1',
-  },
+  container: {flex: 1,backgroundColor: '#f5f5f5', },
+  header: { marginTop: 80, marginBottom: 20, textAlign: 'center', color: '#4169E1', fontSize: 34, fontWeight: 'bold' },
+  scrollView: {flex: 1, paddingHorizontal: 20,},
+  tripButton: {backgroundColor: '#fff', padding: 20, borderRadius: 15, borderWidth: 1, borderColor: '#e0e0e0', marginBottom: 20, minHeight: 80, justifyContent: 'center', shadowColor: '#000', shadowOffset: {width: 0,height: 2,}, shadowOpacity: 0.1, shadowRadius: 3.84, elevation: 5},
+  splitContent: {flex: 1,},
+  tripButtonText: { fontSize: 24, fontWeight: '600', color: '#333', marginBottom: 4, },
+  splitSubtitle: { fontSize: 14, color: '#666', fontWeight: '400', },
+  emptyState: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: 100},
+  emptyStateTitle: { fontSize: 24, fontWeight: '600', color: '#333', marginBottom: 8 },
+  emptyStateSubtitle: { color: '#666', textAlign: 'center', paddingHorizontal: 40, lineHeight: 22},
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#f5f5f5'},
+  loadingText: {marginTop: 10, fontSize: 16, color: '#666' },
+  bottomNav: {flexDirection: 'row', backgroundColor: '#fff', paddingVertical: 10, paddingBottom: 30, borderTopWidth: 1, borderTopColor: '#e0e0e0', justifyContent: 'space-around'},
+  navItem: {alignItems: 'center', flex: 1},
+  navIcon: { fontSize: 24, marginBottom: 4,},
+  navLabel: {fontSize: 12, color: '#666', fontWeight: '500'},
+  activeNavLabel: {color: '#4169E1'},
 });
 
 export default HomeScreen;
