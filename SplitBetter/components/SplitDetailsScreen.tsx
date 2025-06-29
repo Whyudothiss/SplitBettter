@@ -15,7 +15,7 @@ import { db } from '@/firebaseConfig';
 import { useAuth } from '@/components/AuthContext';
 import AddExpenseModal from './AddExpenseModal';
 import BalanceScreen from './BalanceScreen';
-import Photos from './Photos';
+import Photos from '@/components/PhotoPage';
 
 interface Split {
   id: string;

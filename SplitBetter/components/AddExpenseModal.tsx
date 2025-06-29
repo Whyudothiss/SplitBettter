@@ -1,10 +1,11 @@
 import React, {useState, useEffect} from 'react';
 import {addExpense} from '../utils/firestore';
-import {View, StyleSheet, ScrollView, TouchableOpacity, Text, TextInput, Modal} from 'react-native';
+import {View, StyleSheet, ScrollView, TouchableOpacity, Text, TextInput, Modal, Alert} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/firebaseConfig';
 import { useAuth } from '@/components/AuthContext';
+import CurrencyExchange from '../utils/CurrencyExchange';
 
 // Categories data 
 const categories = ["Transport", "Food", "Entertainment", "Others"];
@@ -22,6 +23,16 @@ interface Participant {
   name: string;
 }
 
+interface Split {
+  id: string;
+  title: string;
+  currency: string;
+  budget: number;
+  participants: string[];
+  participantsNames?: Record<string, string>;
+  createdAt: any;
+}
+
 interface AddExpenseModalProps {
   splitId: string;
   onClose: () => void;
@@ -32,6 +43,7 @@ export default function AddExpenseModal({ splitId, onClose }: AddExpenseModalPro
     const [participants, setParticipants] = useState<Participant[]>([]);
     const [loading, setLoading] = useState(false);
     const [fetchingData, setFetchingData] = useState(true);
+    const [split, setSplit] = useState<Split | null>(null);
 
     const [title, setTitle] = useState('');
     const [amount, setAmount] = useState('');
@@ -48,14 +60,29 @@ export default function AddExpenseModal({ splitId, onClose }: AddExpenseModalPro
     const [splitTypeModal, setSplitTypeModal] = useState(false);
 
     const [selectedParticipants, setSelectedParticipants] = useState<string[]>([]);
+    
+    // Currency conversion states
+    const [convertedAmount, setConvertedAmount] = useState<number | null>(null);
+    const [conversionRate, setConversionRate] = useState<number | null>(null);
+    const [isConverting, setIsConverting] = useState(false);
 
-    // Fetch split data to get actual participants
+    // Fetch split data to get actual participants and split currency
     useEffect(() => {
         const fetchSplitData = async () => {
             try {
                 const splitDoc = await getDoc(doc(db, 'splits', splitId));
                 if (splitDoc.exists()) {
-                    const splitData = splitDoc.data();
+                    const splitData = splitDoc.data() as Split;
+                    setSplit({
+                        ...splitData,
+                        id: splitDoc.id,
+                    });
+                    
+                    // Set default currency to split currency
+                    const splitCurrency = currencies.find(c => c.code === splitData.currency);
+                    if (splitCurrency) {
+                        setCurrency(splitCurrency);
+                    }
                     
                     // Create participants array with actual user IDs and names
                     const participantsList: Participant[] = [];
@@ -110,6 +137,47 @@ export default function AddExpenseModal({ splitId, onClose }: AddExpenseModalPro
         }
     }, [splitId, user]);
 
+    // Handle currency conversion when amount or currency changes
+    useEffect(() => {
+        const performConversion = async () => {
+            if (!amount || !split || currency.code === split.currency) {
+                setConvertedAmount(null);
+                setConversionRate(null);
+                return;
+            }
+
+            const numAmount = parseFloat(amount);
+            if (isNaN(numAmount) || numAmount <= 0) {
+                setConvertedAmount(null);
+                setConversionRate(null);
+                return;
+            }
+
+            setIsConverting(true);
+            try {
+                const conversion = await CurrencyExchange.convertCurrency(
+                    numAmount,
+                    currency.code,
+                    split.currency
+                );
+                setConvertedAmount(conversion.convertedAmount);
+                setConversionRate(conversion.conversionRate);
+            } catch (error) {
+                console.error('Currency conversion error:', error);
+                Alert.alert(
+                    'Conversion Error',
+                    'Failed to convert currency. Please check your internet connection and try again.'
+                );
+                setConvertedAmount(null);
+                setConversionRate(null);
+            } finally {
+                setIsConverting(false);
+            }
+        };
+
+        performConversion();
+    }, [amount, currency, split]);
+
     const toggleParticipants = (id: string) => {
         setSelectedParticipants(selected => 
             selected.includes(id)
@@ -120,7 +188,18 @@ export default function AddExpenseModal({ splitId, onClose }: AddExpenseModalPro
     
     const handleAddExpense = async () => {
         if (!title.trim() || !amount.trim()) {
-            alert('Please fill in both title and amount');
+            Alert.alert('Validation Error', 'Please fill in both title and amount');
+            return;
+        }
+
+        if (!split) {
+            Alert.alert('Error', 'Split data not loaded');
+            return;
+        }
+
+        const numAmount = parseFloat(amount);
+        if (isNaN(numAmount) || numAmount <= 0) {
+            Alert.alert('Validation Error', 'Please enter a valid amount');
             return;
         }
 
@@ -128,22 +207,45 @@ export default function AddExpenseModal({ splitId, onClose }: AddExpenseModalPro
         try {
             const paidByParticipant = participants.find(p => p.id === paidBy);
             
-            await addExpense(splitId, {
-              title: title.trim(),
-              amount: parseFloat(amount),
-              currency: currency.code,
-              category,
-              paidBy: paidBy, // Store user ID
-              paidByName: paidByParticipant?.name || 'Unknown', // Store name for display
-              participants: selectedParticipants,
-              splitType,
-            });
-            alert('Expense added successfully!');
+            // Prepare expense data
+            const expenseData: any = {
+                title: title.trim(),
+                category,
+                paidBy: paidBy, // Store user ID
+                paidByName: paidByParticipant?.name || 'Unknown', // Store name for display
+                participants: selectedParticipants,
+                splitType,
+            };
+
+            // Handle currency conversion
+            if (currency.code === split.currency) {
+                // No conversion needed
+                expenseData.amount = numAmount;
+                expenseData.currency = currency.code;
+            } else {
+                // Conversion needed
+                if (convertedAmount === null || conversionRate === null) {
+                    Alert.alert('Conversion Error', 'Currency conversion failed. Please try again.');
+                    return;
+                }
+                
+                expenseData.amount = convertedAmount; // Amount in split currency
+                expenseData.currency = split.currency; // Split currency
+                expenseData.originalAmount = numAmount; // Original amount entered by user
+                expenseData.originalCurrency = currency.code; // Original currency selected by user
+                expenseData.conversionRate = conversionRate; // Rate used for conversion
+            }
+            
+            await addExpense(splitId, expenseData);
+            Alert.alert('Success', 'Expense added successfully!');
             
             // Reset form
             setTitle('');
             setAmount('');
-            setCurrency(currencies[0]);
+            const splitCurrency = currencies.find(c => c.code === split.currency);
+            if (splitCurrency) {
+                setCurrency(splitCurrency);
+            }
             setCategory('');
             const currentUserParticipant = participants.find(p => p.id === user?.uid);
             if (currentUserParticipant) {
@@ -151,11 +253,13 @@ export default function AddExpenseModal({ splitId, onClose }: AddExpenseModalPro
             }
             setSplitType("Equally");
             setSelectedParticipants(participants.map(p => p.id));
+            setConvertedAmount(null);
+            setConversionRate(null);
             
             // Close modal
             onClose();
         } catch (error) {
-            alert("Failed to add expense");
+            Alert.alert('Error', 'Failed to add expense. Please try again.');
             console.error(error);
         } finally {
             setLoading(false);
@@ -214,6 +318,21 @@ export default function AddExpenseModal({ splitId, onClose }: AddExpenseModalPro
                         onChangeText={setAmount} 
                     />
                 </View>
+                
+                {/* Currency Conversion Info */}
+                {split && currency.code !== split.currency && amount && !isNaN(parseFloat(amount)) && parseFloat(amount) > 0 && (
+                    <View style={styles.conversionInfo}>
+                        {isConverting ? (
+                            <Text style={styles.conversionText}>Converting...</Text>
+                        ) : convertedAmount !== null ? (
+                            <Text style={styles.conversionText}>
+                                = {split.currency} {convertedAmount.toFixed(2)} (Rate: {conversionRate?.toFixed(4)})
+                            </Text>
+                        ) : (
+                            <Text style={styles.conversionError}>Conversion failed</Text>
+                        )}
+                    </View>
+                )}
             </View>
 
             {/* Currency Modal */} 
@@ -223,6 +342,9 @@ export default function AddExpenseModal({ splitId, onClose }: AddExpenseModalPro
                         {currencies.map(cur => (
                             <TouchableOpacity key={cur.code} style={styles.modalItem} onPress={() => {setCurrency(cur), setCurrencyModal(false)}}>
                                 <Text style={{fontSize: 18}}>{cur.label}</Text>
+                                {split && cur.code === split.currency && (
+                                    <Text style={styles.splitCurrencyLabel}>(Split Currency)</Text>
+                                )}
                             </TouchableOpacity>
                         ))}
                     </View>
@@ -341,6 +463,9 @@ const styles = StyleSheet.create({
     amountContainer: {flexDirection: 'row', gap:12},
     currencyBox: {flexDirection: 'row', borderRadius: 8, borderWidth: 1, borderColor: '#e0e0e0', alignItems: 'center', paddingHorizontal:12, paddingVertical: 10, backgroundColor: '#fafbfc', marginRight: 4},
     currencyText: {fontSize: 16, color: '#333', marginRight: 2},
+    conversionInfo: {marginTop: 8, paddingHorizontal: 4},
+    conversionText: {fontSize: 14, color: '#4169E1', fontStyle: 'italic'},
+    conversionError: {fontSize: 14, color: '#e74c3c', fontStyle: 'italic'},
     dropDown: {flexDirection: 'row', alignItems:'center',justifyContent:'space-between', borderWidth: 1, borderColor: '#e0e0e0', borderRadius: 8, paddingHorizontal:16, paddingVertical: 14 },
     dropDownText: { fontSize: 18 },
     splitsHeader: {flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16},
@@ -354,5 +479,6 @@ const styles = StyleSheet.create({
     participantName: { fontSize: 16, color: '#333' },
     modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.15)', justifyContent: 'flex-end' },
     modalBox: { backgroundColor: 'white', padding: 24, borderTopLeftRadius: 20, borderTopRightRadius: 20 },
-    modalItem: { paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#eee' },
+    modalItem: { paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#eee', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+    splitCurrencyLabel: { fontSize: 14, color: '#4169E1', fontWeight: '500' },
 });

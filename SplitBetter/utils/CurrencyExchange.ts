@@ -1,73 +1,156 @@
-// const BASE_URL = 'https://api.exchangerate.host';
+const API_KEY = 'efbd0e2783ba9dd21b2cb4bb';
+const BASE_URL = 'https://v6.exchangerate-api.com/v6';
 
-// export const currencyService = {
-//   async getConversionRate(from: string, to: string): Promise<number> {
-//     const url = `${BASE_URL}/convert?from=${from}&to=${to}&amount=1`;
-//     const response = await fetch(url);
-//     const data = await response.json();
+interface ExchangeRateResponse {
+  result: string;
+  documentation: string;
+  terms_of_use: string;
+  time_last_update_unix: number;
+  time_last_update_utc: string;
+  time_next_update_unix: number;
+  time_next_update_utc: string;
+  base_code: string;
+  conversion_rates: Record<string, number>;
+}
 
-//     if (!data || typeof data.result !== 'number') {
-//       throw new Error('Invalid response format: missing result');
-//     }
+interface ConversionResult {
+  convertedAmount: number;
+  conversionRate: number;
+  originalAmount: number;
+  originalCurrency: string;
+  targetCurrency: string;
+}
 
-//     return data.result; // This is the rate from 'from' to 'to'
-//   },
+export default class CurrencyExchange {
+  private static cache: Map<string, { rate: number; timestamp: number }> = new Map();
+  private static readonly CACHE_DURATION = 30 * 60 * 1000; // 30 minutes in milliseconds
 
-//   async convertCurrency(amount: number, from: string, to: string): Promise<number> {
-//     const rate = await this.getConversionRate(from, to);
-//     return amount * rate;
-//   },
-// };
-
-// currencyService.js (or .ts)
-export const currencyService = {
-    // Fetch the conversion rate from an API (e.g., ExchangeRate-API or similar)
-    getConversionRate: async (fromCurrency: string, toCurrency: string): Promise<number> => {
-      try {
-        // Example API URL (replace with your actual API URL)
-        const response = await fetch(`https://api.exchangerate-api.com/v4/latest/${fromCurrency}`);
-        
-        // Check if the response is valid
-        if (!response.ok) {
-          throw new Error(`Failed to fetch conversion rate: ${response.statusText}`);
-        }
-  
-        // Parse the response as JSON
-        const data = await response.json();
-  
-        // Check if the 'rates' object and target currency are available in the response
-        if (!data || !data.rates || !data.rates[toCurrency]) {
-          throw new Error(`Conversion rate not found for ${fromCurrency} to ${toCurrency}`);
-        }
-  
-        // Return the conversion rate for the target currency
-        return data.rates[toCurrency];
-      } catch (error) {
-        // Log the error and rethrow it to be handled by the calling function
-        console.error('Error fetching conversion rate:', error);
-        throw error;  // Rethrow error so it can be handled by the calling component
-      }
-    },
-  
-    // Convert a given amount from one currency to another
-    convertCurrency: async (amount: number, fromCurrency: string, toCurrency: string): Promise<number> => {
-      try {
-        // Get the conversion rate
-        const rate = await currencyService.getConversionRate(fromCurrency, toCurrency);
-  
-        // If the rate is valid, return the converted amount
-        if (rate) {
-          const convertedAmount = amount * rate;
-          return convertedAmount;
-        }
-  
-        // If no rate found, throw an error
-        throw new Error('Invalid conversion rate');
-      } catch (error) {
-        // Log the error and rethrow it to be handled by the calling function
-        console.error('Currency conversion error:', error);
-        throw error;  // Rethrow error to be handled in the calling component
-      }
+  /**
+   * Get exchange rate from one currency to another
+   */
+  static async getExchangeRate(fromCurrency: string, toCurrency: string): Promise<number> {
+    // If currencies are the same, rate is 1
+    if (fromCurrency === toCurrency) {
+      return 1;
     }
-  };
-  
+
+    const cacheKey = `${fromCurrency}-${toCurrency}`;
+    const cachedData = this.cache.get(cacheKey);
+    
+    // Check if we have cached data that's still valid
+    if (cachedData && (Date.now() - cachedData.timestamp) < this.CACHE_DURATION) {
+      return cachedData.rate;
+    }
+
+    try {
+      const response = await fetch(`${BASE_URL}/${API_KEY}/latest/${fromCurrency}`);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data: ExchangeRateResponse = await response.json();
+      
+      if (data.result !== 'success') {
+        throw new Error('API request failed');
+      }
+
+      const rate = data.conversion_rates[toCurrency];
+      
+      if (!rate) {
+        throw new Error(`Exchange rate not found for ${toCurrency}`);
+      }
+
+      // Cache the result
+      this.cache.set(cacheKey, {
+        rate,
+        timestamp: Date.now()
+      });
+
+      return rate;
+    } catch (error) {
+      console.error('Error fetching exchange rate:', error);
+      
+      // If we have cached data (even if expired), use it as fallback
+      if (cachedData) {
+        console.warn('Using expired cached exchange rate as fallback');
+        return cachedData.rate;
+      }
+      
+      throw error;
+    }
+  }
+
+  /**
+   * Convert amount from one currency to another
+   */
+  static async convertCurrency(
+    amount: number,
+    fromCurrency: string,
+    toCurrency: string
+  ): Promise<ConversionResult> {
+    try {
+      const conversionRate = await this.getExchangeRate(fromCurrency, toCurrency);
+      const convertedAmount = amount * conversionRate;
+
+      return {
+        convertedAmount: Math.round(convertedAmount * 100) / 100, // Round to 2 decimal places
+        conversionRate,
+        originalAmount: amount,
+        originalCurrency: fromCurrency,
+        targetCurrency: toCurrency
+      };
+    } catch (error) {
+      console.error('Currency conversion failed:', error);
+      throw new Error('Failed to convert currency. Please try again.');
+    }
+  }
+
+  /**
+   * Get multiple exchange rates for a base currency
+   */
+  static async getMultipleRates(baseCurrency: string, targetCurrencies: string[]): Promise<Record<string, number>> {
+    try {
+      const response = await fetch(`${BASE_URL}/${API_KEY}/latest/${baseCurrency}`);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data: ExchangeRateResponse = await response.json();
+      
+      if (data.result !== 'success') {
+        throw new Error('API request failed');
+      }
+
+      const rates: Record<string, number> = {};
+      
+      targetCurrencies.forEach(currency => {
+        if (currency === baseCurrency) {
+          rates[currency] = 1;
+        } else if (data.conversion_rates[currency]) {
+          rates[currency] = data.conversion_rates[currency];
+        }
+      });
+
+      return rates;
+    } catch (error) {
+      console.error('Error fetching multiple exchange rates:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Clear the exchange rate cache
+   */
+  static clearCache(): void {
+    this.cache.clear();
+  }
+
+  /**
+   * Get cache size (for debugging)
+   */
+  static getCacheSize(): number {
+    return this.cache.size;
+  }
+}
