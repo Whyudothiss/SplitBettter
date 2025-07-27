@@ -2,7 +2,7 @@ import React, {useState, useEffect} from 'react';
 import {addExpense} from '../utils/firestore';
 import {View, StyleSheet, ScrollView, TouchableOpacity, Text, TextInput, Modal, Alert} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db } from '@/firebaseConfig';
 import { useAuth } from '@/components/AuthContext';
 import CurrencyExchange from '../utils/CurrencyExchange';
@@ -61,7 +61,7 @@ interface AddExpenseModalProps {
   isEdit?: boolean;
 }
 
-export default function AddExpenseModal({ splitId, onClose }: AddExpenseModalProps) {
+export default function AddExpenseModal({ splitId, onClose, expense, isEdit = false }: AddExpenseModalProps) {
     const { user } = useAuth();
     const [participants, setParticipants] = useState<Participant[]>([]);
     const [loading, setLoading] = useState(false);
@@ -92,6 +92,43 @@ export default function AddExpenseModal({ splitId, onClose }: AddExpenseModalPro
     const [conversionRate, setConversionRate] = useState<number | null>(null);
     const [isConverting, setIsConverting] = useState(false);
 
+    // Populate form fields when editing
+    useEffect(() => {
+        if (isEdit && expense) {
+            setTitle(expense.title);
+            
+            // Handle amount and currency for editing
+            if (expense.originalAmount && expense.originalCurrency) {
+                // Use original amount and currency if available
+                setAmount(expense.originalAmount.toString());
+                const originalCurrency = currencies.find(c => c.code === expense.originalCurrency);
+                if (originalCurrency) {
+                    setCurrency(originalCurrency);
+                }
+            } else {
+                // Use current amount and currency
+                setAmount(expense.amount.toString());
+                const expenseCurrency = currencies.find(c => c.code === expense.currency);
+                if (expenseCurrency) {
+                    setCurrency(expenseCurrency);
+                }
+            }
+            
+            setPaidBy(expense.paidBy);
+            setSelectedParticipants(expense.participants || []);
+            setSplitType(expense.splitType || "Equally");
+            
+            // Handle custom amounts
+            if (expense.splitType === "Custom" && expense.customAmounts) {
+                const customAmountsStr: Record<string, string> = {};
+                Object.entries(expense.customAmounts).forEach(([id, amount]) => {
+                    customAmountsStr[id] = amount.toString();
+                });
+                setCustomAmounts(customAmountsStr);
+            }
+        }
+    }, [isEdit, expense]);
+
     // Fetch split data to get actual participants and split currency
     useEffect(() => {
         const fetchSplitData = async () => {
@@ -104,10 +141,12 @@ export default function AddExpenseModal({ splitId, onClose }: AddExpenseModalPro
                         id: splitDoc.id,
                     });
                     
-                    // Set default currency to split currency
-                    const splitCurrency = currencies.find(c => c.code === splitData.currency);
-                    if (splitCurrency) {
-                        setCurrency(splitCurrency);
+                    // Set default currency to split currency (only for new expenses)
+                    if (!isEdit) {
+                        const splitCurrency = currencies.find(c => c.code === splitData.currency);
+                        if (splitCurrency) {
+                            setCurrency(splitCurrency);
+                        }
                     }
                     
                     // Create participants array with actual user IDs and names
@@ -143,19 +182,23 @@ export default function AddExpenseModal({ splitId, onClose }: AddExpenseModalPro
                     }
                     
                     setParticipants(participantsList);
-                    setSelectedParticipants(participantsList.map(p => p.id));
+                    
+                    // Only set default selections for new expenses
+                    if (!isEdit) {
+                        setSelectedParticipants(participantsList.map(p => p.id));
 
-                    // Initialise custom amounts
-                    const initialAmount: Record<string, string> = {};
-                    participantsList.forEach(p => {
-                        initialAmount[p.id] = ''
-                    });
-                    setCustomAmounts(initialAmount);
+                        // Initialise custom amounts
+                        const initialAmount: Record<string, string> = {};
+                        participantsList.forEach(p => {
+                            initialAmount[p.id] = ''
+                        });
+                        setCustomAmounts(initialAmount);
 
-                    // Set default paid by to current user
-                    const currentUserParticipant = participantsList.find(p => p.id === user?.uid);
-                    if (currentUserParticipant) {
-                        setPaidBy(currentUserParticipant.id); 
+                        // Set default paid by to current user
+                        const currentUserParticipant = participantsList.find(p => p.id === user?.uid);
+                        if (currentUserParticipant) {
+                            setPaidBy(currentUserParticipant.id); 
+                        }
                     }
                 }
             } catch (error) {
@@ -168,7 +211,7 @@ export default function AddExpenseModal({ splitId, onClose }: AddExpenseModalPro
         if (splitId && user) {
             fetchSplitData();
         }
-    }, [splitId, user]);
+    }, [splitId, user, isEdit]);
 
     // Handle currency conversion when amount or currency changes
     useEffect(() => {
@@ -223,11 +266,6 @@ export default function AddExpenseModal({ splitId, onClose }: AddExpenseModalPro
     }, [splitType, selectedParticipants]);
 
     const toggleParticipants = (id: string) => {
-        // if (splitType === "Custom") {
-        //     // For custom split, don't allow deselecting participants
-        //     // Or you could handle it by removing their amount
-        //     return;
-        // }
         setSelectedParticipants(selected => 
             selected.includes(id)
             ? selected.filter(pid => pid !== id)
@@ -344,36 +382,20 @@ export default function AddExpenseModal({ splitId, onClose }: AddExpenseModalPro
                 expenseData.conversionRate = conversionRate; // Rate used for conversion
             }
             
-            await addExpense(splitId, expenseData);
-            Alert.alert('Success', 'Expense added successfully!');
-            
-            // Reset form
-            setTitle('');
-            setAmount('');
-            const splitCurrency = currencies.find(c => c.code === split.currency);
-            if (splitCurrency) {
-                setCurrency(splitCurrency);
+            if (isEdit && expense) {
+                // Update existing expense
+                await updateDoc(doc(db, 'splits', splitId, 'expenses', expense.id), expenseData);
+                Alert.alert('Success', 'Expense updated successfully!');
+            } else {
+                // Add new expense
+                await addExpense(splitId, expenseData);
+                Alert.alert('Success', 'Expense added successfully!');
             }
-            setCategory('');
-            const currentUserParticipant = participants.find(p => p.id === user?.uid);
-            if (currentUserParticipant) {
-                setPaidBy(currentUserParticipant.id);
-            }
-            setSplitType("Equally");
-            setSelectedParticipants(participants.map(p => p.id));
-            setConvertedAmount(null);
-            setConversionRate(null);
-
-            const initialAmounts: Record<string, string> = {};
-            participants.forEach(p => {
-                initialAmounts[p.id] = '';
-            });
-            setCustomAmounts(initialAmounts);
             
             // Close modal
             onClose();
         } catch (error) {
-            Alert.alert('Error', 'Failed to add expense. Please try again.');
+            Alert.alert('Error', `Failed to ${isEdit ? 'update' : 'add'} expense. Please try again.`);
             console.error(error);
         } finally {
             setLoading(false);
@@ -394,7 +416,7 @@ export default function AddExpenseModal({ splitId, onClose }: AddExpenseModalPro
             <TouchableOpacity onPress={onClose}>
                 <Ionicons name="chevron-back" size={24} color="#000" />
             </TouchableOpacity>
-            <Text style={styles.headerTitle}>Add Expense</Text>
+            <Text style={styles.headerTitle}>{isEdit ? 'Edit Expense' : 'Add Expense'}</Text>
             <View style={{width: 24}}/>
         </View>
         
@@ -574,14 +596,14 @@ export default function AddExpenseModal({ splitId, onClose }: AddExpenseModalPro
                 ))}
             </View>
 
-            {/* Add Expense Button */}
+            {/* Add/Update Expense Button */}
             <TouchableOpacity 
                 style={[styles.addButton, loading && styles.addButtonDisabled]} 
                 onPress={handleAddExpense}
                 disabled={loading}
             >
                 <Text style={styles.addButtonText}>
-                    {loading ? 'Adding Expense...' : 'Add Expense'}
+                    {loading ? (isEdit ? 'Updating Expense...' : 'Adding Expense...') : (isEdit ? 'Update Expense' : 'Add Expense')}
                 </Text>
             </TouchableOpacity>
 
