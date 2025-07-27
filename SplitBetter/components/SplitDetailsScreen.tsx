@@ -11,7 +11,7 @@ import {
   Modal,
   Alert,
 } from 'react-native';
-import { collection, query, orderBy, getDocs, doc, getDoc, deleteDoc } from 'firebase/firestore';
+import { collection, query, orderBy, getDocs, doc, getDoc, deleteDoc, writeBatch } from 'firebase/firestore';
 import { db } from '@/firebaseConfig';
 import { useAuth } from '@/components/AuthContext';
 import AddExpenseModal from './AddExpenseModal';
@@ -64,6 +64,7 @@ export default function SplitDetailsScreen({ splitId, onBack }: SplitDetailsScre
   const { user } = useAuth();
   const [selectedExpense, setSelectedExpense] = useState<Expense | null>(null);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const fetchSplitData = async () => {
     if (!splitId || !user) {
@@ -160,6 +161,49 @@ export default function SplitDetailsScreen({ splitId, onBack }: SplitDetailsScre
     ]);
   };
 
+  const handleDeleteSplit = async () => {
+    Alert.alert(
+      'Delete Split',
+      `Are you sure you want to delete "${split?.title}"? This will permanently delete the split and all its expenses. This action cannot be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Delete', 
+          style: 'destructive', 
+          onPress: async () => {
+            setIsDeleting(true);
+            try {
+              const batch = writeBatch(db);
+              
+              // Delete all expenses in the split
+              const expensesQuery = query(collection(db, 'splits', splitId, 'expenses'));
+              const expensesSnapshot = await getDocs(expensesQuery);
+              
+              expensesSnapshot.forEach((expenseDoc) => {
+                batch.delete(doc(db, 'splits', splitId, 'expenses', expenseDoc.id));
+              });
+              
+              // Delete the split document itself
+              batch.delete(doc(db, 'splits', splitId));
+              
+              // Commit all deletions in a batch
+              await batch.commit();
+              
+              Alert.alert('Success', 'Split deleted successfully', [
+                { text: 'OK', onPress: onBack }
+              ]);
+            } catch (error) {
+              console.error('Error deleting split:', error);
+              Alert.alert('Error', 'Failed to delete split. Please try again.');
+            } finally {
+              setIsDeleting(false);
+            }
+          }
+        }
+      ]
+    );
+  };
+
   useEffect(() => {
     fetchSplitData();
   }, [splitId, user]);
@@ -215,17 +259,6 @@ export default function SplitDetailsScreen({ splitId, onBack }: SplitDetailsScre
     }
     
     return <Text style={styles.expenseAmount}>{displayAmount}</Text>;
-  };
-
-  const formatDate = (timestamp: any) => {
-    if (!timestamp) return '';
-    const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
-    return date.toLocaleDateString('en-US', { 
-      weekday: 'long', 
-      year: 'numeric', 
-      month: 'long', 
-      day: 'numeric' 
-    });
   };
 
   const getInitials = (name: string) => {
@@ -442,10 +475,27 @@ export default function SplitDetailsScreen({ splitId, onBack }: SplitDetailsScre
                 </TouchableOpacity>
               ))
             )}
+            
+            {/* Add Expense Button */}
             <View style={styles.addButtonContainer}>
               <TouchableOpacity style={styles.addButton} onPress={handleAddExpense}>
                 <Text style={styles.addButtonIcon}>+</Text>
                 <Text style={styles.addButtonText}>ADD EXPENSES</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Delete Split Button */}
+            <View style={styles.deleteSplitContainer}>
+              <TouchableOpacity 
+                style={styles.deleteSplitButton} 
+                onPress={handleDeleteSplit}
+                disabled={isDeleting}
+              >
+                {isDeleting ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Text style={styles.deleteSplitButtonText}>Delete Split</Text>
+                )}
               </TouchableOpacity>
             </View>
           </ScrollView>
@@ -460,7 +510,24 @@ export default function SplitDetailsScreen({ splitId, onBack }: SplitDetailsScre
       )}
 
       {activeTab === 'balance' && user?.uid && (
-        <BalanceScreen split={splitWithNames} expenses={expenses} currentUserId={user?.uid}/>
+        <>
+          <BalanceScreen split={splitWithNames} expenses={expenses} currentUserId={user?.uid}/>
+          
+          {/* Delete Split Button for Balance Tab */}
+          <View style={styles.deleteSplitContainerBalance}>
+            <TouchableOpacity 
+              style={styles.deleteSplitButton} 
+              onPress={handleDeleteSplit}
+              disabled={isDeleting}
+            >
+              {isDeleting ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Text style={styles.deleteSplitButtonText}>Delete Split</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </>
       )}
     </SafeAreaView>
   );
@@ -506,10 +573,14 @@ const styles = StyleSheet.create({
   expenseAmount: { fontSize: 18, fontWeight: '600', color: '#333' },
   userShareAmount: { fontSize: 14, color: '#4169E1', fontStyle: 'italic', marginTop: 2, textAlign: 'right' },
   originalAmount: { fontSize: 12, color: '#666', fontStyle: 'italic', marginTop: 2, textAlign: 'right'},
-  addButtonContainer: { paddingHorizontal: 20, paddingVertical: 20, paddingBottom: 30 },
+  addButtonContainer: { paddingVertical: 20 },
   addButton: { backgroundColor: '#333', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 15, borderRadius: 25, gap: 10 },
   addButtonIcon: { fontSize: 24, color: '#fff', fontWeight: 'bold' },
   addButtonText: { fontSize: 16, color: '#fff', fontWeight: '600', letterSpacing: 1 },
+  deleteSplitContainer: { paddingVertical: 20, paddingBottom: 30 },
+  deleteSplitContainerBalance: { paddingHorizontal: 20, paddingVertical: 20, paddingBottom: 30 },
+  deleteSplitButton: { backgroundColor: '#e74c3c', paddingVertical: 15, borderRadius: 12,  alignItems: 'center', flexDirection: 'row', justifyContent: 'center'},
+  deleteSplitButtonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
   scrollContent: {flex: 1, backgroundColor: '#f5f5f5'},
   expenseDetailTitleSection: {alignItems: 'center', paddingVertical: 30, backgroundColor: '#f5f5f5'},
   expenseDetailTitle: { fontSize: 24, fontWeight: '700',color: '#333'},
