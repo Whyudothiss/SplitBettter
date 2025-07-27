@@ -7,6 +7,7 @@ import { db } from '@/firebaseConfig';
 import { useAuth } from '@/components/AuthContext';
 import CurrencyExchange from '../utils/CurrencyExchange';
 
+
 // Categories data 
 const categories = ["Transport", "Food", "Entertainment", "Others"];
 
@@ -35,9 +36,29 @@ interface Split {
   createdAt: any;
 }
 
+interface Expense {
+    id: string;
+    title: string;
+    amount: number;
+    currency: string;
+    originalAmount?: number;
+    originalCurrency?: string;
+    conversionRate?: number;
+    paidBy: string;
+    paidByName: string;
+    participants: string[];
+    participantCount?: number;
+    splitId: string;
+    createdAt: any;
+    splitType?: string;
+    customAmounts?: Record<string, number>; 
+  }
+
 interface AddExpenseModalProps {
   splitId: string;
   onClose: () => void;
+  expense?: Expense;
+  isEdit?: boolean;
 }
 
 export default function AddExpenseModal({ splitId, onClose }: AddExpenseModalProps) {

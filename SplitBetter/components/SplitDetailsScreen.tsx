@@ -9,13 +9,13 @@ import {
   SafeAreaView,
   StatusBar,
   Modal,
+  Alert,
 } from 'react-native';
-import { collection, query, orderBy, getDocs, doc, getDoc } from 'firebase/firestore';
+import { collection, query, orderBy, getDocs, doc, getDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '@/firebaseConfig';
 import { useAuth } from '@/components/AuthContext';
 import AddExpenseModal from './AddExpenseModal';
 import BalanceScreen from './BalanceScreen';
-import Photos from '@/components/PhotosPage';
 
 interface Split {
   id: string;
@@ -41,8 +41,8 @@ interface Expense {
   participantCount?: number;
   splitId: string;
   createdAt: any;
-  splitType?: string; // Added for custom split support
-  customAmounts?: Record<string, number>; // Added for custom split support
+  splitType?: string;
+  customAmounts?: Record<string, number>;
 }
 
 interface SplitDetailsScreenProps {
@@ -50,7 +50,7 @@ interface SplitDetailsScreenProps {
   onBack: () => void;
 }
 
-type TabType = 'expenses' | 'balance' | 'photos';
+type TabType = 'expenses' | 'balance';
 
 export default function SplitDetailsScreen({ splitId, onBack }: SplitDetailsScreenProps) {
   const [split, setSplit] = useState<Split | null>(null);
@@ -62,6 +62,8 @@ export default function SplitDetailsScreen({ splitId, onBack }: SplitDetailsScre
   const [activeTab, setActiveTab] = useState<TabType>('expenses');
   const [participantsNames, setParticipantsNames] = useState<Record<string, string>>({});
   const { user } = useAuth();
+  const [selectedExpense, setSelectedExpense] = useState<Expense | null>(null);
+  const [showEditModal, setShowEditModal] = useState(false);
 
   const fetchSplitData = async () => {
     if (!splitId || !user) {
@@ -81,7 +83,6 @@ export default function SplitDetailsScreen({ splitId, onBack }: SplitDetailsScre
         if (splitData.participantsNames) {
           setParticipantsNames(splitData.participantsNames);
         } else {
-          // Fetch usernames from users collection
           const names: Record<string, string> = {};
           await Promise.all(
             splitData.participants.map(async (uid) => {
@@ -119,18 +120,14 @@ export default function SplitDetailsScreen({ splitId, onBack }: SplitDetailsScre
         } as Expense;
         expensesData.push(expenseData);
         
-        // Use the amount field which should already be in split currency
         total += expenseData.amount;
         
-        // Calculate user share based on split type
         if (expenseData.participants && expenseData.participants.includes(user?.uid)) {
           let userShareOfExpense = 0;
           
           if (expenseData.splitType === 'Custom' && expenseData.customAmounts) {
-            // Use custom amount for this user
             userShareOfExpense = expenseData.customAmounts[user.uid] || 0;
           } else {
-            // Default to equal split
             userShareOfExpense = expenseData.amount / expenseData.participants.length;
           }
           
@@ -146,6 +143,21 @@ export default function SplitDetailsScreen({ splitId, onBack }: SplitDetailsScre
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleDeleteExpense = async (expense: Expense) => {
+    Alert.alert('Delete Expense', 'Are you sure you want to delete this expense?', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Delete', style: 'destructive', onPress: async () => {
+        try {
+          await deleteDoc(doc(db, 'splits', splitId, 'expenses', expense.id));
+          setSelectedExpense(null);
+          fetchSplitData();
+        } catch (err) {
+          Alert.alert('Error', 'Failed to delete expense.');
+        }
+      }}
+    ]);
   };
 
   useEffect(() => {
@@ -165,13 +177,11 @@ export default function SplitDetailsScreen({ splitId, onBack }: SplitDetailsScre
 
   const handleTabChange = (tab: TabType) => setActiveTab(tab);
 
-  // Enhanced function to render expense amount with original currency info and custom split details
   const renderExpenseAmount = (expense: Expense) => {
     if (!split) return null;
     
     const displayAmount = `${split.currency}${expense.amount.toFixed(2)}`;
     
-    // Show user's share for custom splits
     if (expense.splitType === 'Custom' && expense.customAmounts && user?.uid) {
       const userAmount = expense.customAmounts[user.uid] || 0;
       return (
@@ -191,7 +201,6 @@ export default function SplitDetailsScreen({ splitId, onBack }: SplitDetailsScre
       );
     }
     
-    // Show original amount if it was converted (for equal splits)
     if (expense.originalAmount && 
         expense.originalCurrency && 
         expense.originalCurrency !== split.currency) {
@@ -206,6 +215,21 @@ export default function SplitDetailsScreen({ splitId, onBack }: SplitDetailsScre
     }
     
     return <Text style={styles.expenseAmount}>{displayAmount}</Text>;
+  };
+
+  const formatDate = (timestamp: any) => {
+    if (!timestamp) return '';
+    const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+    return date.toLocaleDateString('en-US', { 
+      weekday: 'long', 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric' 
+    });
+  };
+
+  const getInitials = (name: string) => {
+    return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
   };
 
   if (loading) {
@@ -228,7 +252,119 @@ export default function SplitDetailsScreen({ splitId, onBack }: SplitDetailsScre
     );
   }
 
-  // Inject the participantsNames into split for BalanceScreen
+  // Enhanced Expense Details Page (Updated - Scrollable, No Date, No Icon)
+  if (selectedExpense) {
+    const currencySymbol = selectedExpense.currency === 'SGD' ? 'S$' : selectedExpense.currency;
+
+    return (
+      <SafeAreaView style={styles.container}>
+        <StatusBar barStyle="dark-content" backgroundColor="#f5f5f5" />
+        
+        {/* Header */}
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => setSelectedExpense(null)} style={styles.backButtonHeader}>
+            <Text style={styles.backArrow}>←</Text>
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>{selectedExpense.title}</Text>
+          <TouchableOpacity 
+            style={styles.editHeaderButton}
+            onPress={() => setShowEditModal(true)}
+          >
+            <Text style={styles.editHeaderText}>Edit</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Scrollable Content */}
+        <ScrollView style={styles.scrollContent} showsVerticalScrollIndicator={false}>
+          {/* Expense Title Section */}
+          <View style={styles.expenseDetailTitleSection}>
+            <Text style={styles.expenseDetailTitle}>{selectedExpense.title}</Text>
+          </View>
+
+          {/* Paid By Section */}
+          <View style={styles.detailSection}>
+            <Text style={styles.detailSectionTitle}>Paid By</Text>
+            <View style={styles.detailParticipantRow}>
+              <View style={styles.detailParticipantAvatar}>
+                <Text style={styles.detailParticipantInitials}>
+                  {getInitials(selectedExpense.paidByName || participantsNames[selectedExpense.paidBy] || 'U')}
+                </Text>
+              </View>
+              <Text style={styles.detailParticipantName}>
+                {selectedExpense.paidByName || participantsNames[selectedExpense.paidBy] || selectedExpense.paidBy}
+              </Text>
+              <View style={styles.detailAmountContainer}>
+                <Text style={styles.detailParticipantAmount}>
+                  {currencySymbol}{selectedExpense.amount.toFixed(2)}
+                </Text>
+              </View>
+            </View>
+          </View>
+
+          {/* For Participants Section */}
+          <View style={styles.detailSection}>
+            <Text style={styles.detailSectionTitle}>
+              For {selectedExpense.participants?.length || 0} Participants
+            </Text>
+            {selectedExpense.participants?.map((participantId) => {
+              const participantName = participantsNames[participantId] || participantId;
+              let participantAmount = 0;
+              
+              if (selectedExpense.splitType === 'Custom' && selectedExpense.customAmounts) {
+                participantAmount = selectedExpense.customAmounts[participantId] || 0;
+              } else {
+                participantAmount = selectedExpense.amount / selectedExpense.participants.length;
+              }
+
+              return (
+                <View key={participantId} style={styles.detailParticipantRow}>
+                  <View style={styles.detailParticipantAvatar}>
+                    <Text style={styles.detailParticipantInitials}>
+                      {getInitials(participantName)}
+                    </Text>
+                  </View>
+                  <Text style={styles.detailParticipantName}>{participantName}</Text>
+                  <View style={styles.detailAmountContainer}>
+                    <Text style={styles.detailParticipantAmount}>
+                      {currencySymbol}{participantAmount.toFixed(2)}
+                    </Text>
+                  </View>
+                </View>
+              );
+            })}
+          </View>
+
+          {/* Action Buttons */}
+          <View style={styles.actionButtonsContainer}>
+            <TouchableOpacity
+              style={styles.deleteActionButton}
+              onPress={() => handleDeleteExpense(selectedExpense)}
+            >
+              <Text style={styles.deleteActionButtonText}>Delete Expense</Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+
+        <Modal
+          visible={showEditModal}
+          animationType="slide"
+          presentationStyle="pageSheet"
+        >
+          <AddExpenseModal
+            splitId={splitId}
+            expense={selectedExpense}
+            onClose={() => {
+              setShowEditModal(false);
+              fetchSplitData();
+              setSelectedExpense(null);
+            }}
+            isEdit={true}
+          />
+        </Modal>
+      </SafeAreaView>
+    );
+  }
+
   const splitWithNames = { ...split, participantsNames };
 
   return (
@@ -257,12 +393,6 @@ export default function SplitDetailsScreen({ splitId, onBack }: SplitDetailsScre
           onPress={() => handleTabChange('balance')}
         >
           <Text style={[styles.tabText, activeTab === 'balance' && styles.activeTabText]}>Balance</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'photos' && styles.activeTab]}
-          onPress={() => handleTabChange('photos')}
-        >
-          <Text style={[styles.tabText, activeTab === 'photos' && styles.activeTabText]}>Photos</Text>
         </TouchableOpacity>
       </View>
 
@@ -297,6 +427,7 @@ export default function SplitDetailsScreen({ splitId, onBack }: SplitDetailsScre
                     styles.expenseItem,
                     expense.paidBy === user?.uid && styles.userExpenseItem,
                   ]}
+                  onPress={() => setSelectedExpense(expense)}
                 >
                   <View style={styles.expenseContent}>
                     <Text style={styles.expenseTitle}>{expense.title}</Text>
@@ -327,13 +458,9 @@ export default function SplitDetailsScreen({ splitId, onBack }: SplitDetailsScre
           </Modal>
         </>
       )}
-       {/* Add this part to check if there is a valid user */}
+
       {activeTab === 'balance' && user?.uid && (
         <BalanceScreen split={splitWithNames} expenses={expenses} currentUserId={user?.uid}/>
-      )}
-
-      {activeTab === 'photos' && (
-        <Photos splitId={splitId} />
       )}
     </SafeAreaView>
   );
@@ -352,6 +479,8 @@ const styles = StyleSheet.create({
   backArrow: { fontSize: 24, color: '#333' },
   headerTitle: { fontSize: 20, fontWeight: '600', color: '#333' },
   headerRight: { width: 34 }, 
+  editHeaderButton: { padding: 5 },
+  editHeaderText: { fontSize: 16, color: '#4169E1', fontWeight: '600' },
   dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#666' },
   tabContainer: { flexDirection: 'row', paddingHorizontal: 20, marginBottom: 20, justifyContent: 'center', backgroundColor: '#e8e8e8', borderRadius: 25, marginHorizontal: 20, padding: 4},
   tab: { flex: 1, paddingVertical: 10, borderRadius: 20, alignItems: 'center', justifyContent: 'center'},
@@ -381,4 +510,18 @@ const styles = StyleSheet.create({
   addButton: { backgroundColor: '#333', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 15, borderRadius: 25, gap: 10 },
   addButtonIcon: { fontSize: 24, color: '#fff', fontWeight: 'bold' },
   addButtonText: { fontSize: 16, color: '#fff', fontWeight: '600', letterSpacing: 1 },
+  scrollContent: {flex: 1, backgroundColor: '#f5f5f5'},
+  expenseDetailTitleSection: {alignItems: 'center', paddingVertical: 30, backgroundColor: '#f5f5f5'},
+  expenseDetailTitle: { fontSize: 24, fontWeight: '700',color: '#333'},
+  detailSection: {backgroundColor: '#fff', marginHorizontal: 20, marginVertical: 8, borderRadius: 15, padding: 20, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 3.84, elevation: 3},
+  detailSectionTitle: {fontSize: 18, fontWeight: '600', color: '#333', marginBottom: 16},
+  detailParticipantRow: {flexDirection: 'row', alignItems: 'center',paddingVertical: 12},
+  detailParticipantAvatar: {width: 44, height: 44, borderRadius: 22, backgroundColor: '#4169E1', alignItems: 'center', justifyContent: 'center',marginRight: 16 },
+  detailParticipantInitials: {color: '#fff', fontSize: 16, fontWeight: '600'},
+  detailParticipantName: {flex: 1, fontSize: 16, fontWeight: '500',color: '#333' },
+  detailAmountContainer: {alignItems: 'flex-end'},
+  detailParticipantAmount: {fontSize: 18, fontWeight: '700', color: '#333' },
+  actionButtonsContainer: {paddingHorizontal: 20, paddingVertical: 20, marginTop: 'auto' },
+  deleteActionButton: {backgroundColor: '#e74c3c', paddingVertical: 15, borderRadius: 12, alignItems: 'center' },
+  deleteActionButtonText: { color: '#fff', fontSize: 16, fontWeight: '600' }
 });
