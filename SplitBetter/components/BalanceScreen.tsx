@@ -21,6 +21,8 @@ interface Expense {
   participants?: string[];
   splitId: string;
   createdAt: any;
+  splitType?: string; // Added for custom split support
+  customAmounts?: Record<string, number>; // Added for custom split support
 }
 
 interface BalanceScreenProps {
@@ -41,26 +43,33 @@ function calculateNetBalances(split: Split, expenses: Expense[]) {
   expenses.forEach(expense => {
     // Expense Participants
     const participants = expense.participants || split.participants;
-    const share = expense.amount / participants.length; // For equal splitting 
 
     // Add to payer's paid
     paid[expense.paidBy] = (paid[expense.paidBy] || 0 ) + expense.amount;
 
-    // Add to owed of all participants
-    participants.forEach(uid => {
-      owed[uid] = (owed[uid] || 0) + share;
-    });
+    // Calculate owed amounts based on split type
+    if (expense.splitType === 'Custom' && expense.customAmounts) {
+      // Use custom amounts for each participant
+      participants.forEach(uid => {
+        const customAmount = expense.customAmounts![uid] || 0;
+        owed[uid] = (owed[uid] || 0) + customAmount;
+      });
+    } else {
+      // Default to equal splitting
+      const share = expense.amount / participants.length;
+      participants.forEach(uid => {
+        owed[uid] = (owed[uid] || 0) + share;
+      });
+    }
   });
 
-
-  const net: { [usedId: string]: number} = {};
+  const net: { [userId: string]: number} = {};
   split.participants.forEach(uid => {
     net[uid] = paid[uid] - owed[uid];
   });
 
   return net;
 }
-
 
 // Calculate settlements
 interface Settlement {
@@ -103,7 +112,6 @@ function calculateSettlements(balances: { [userId: string]: number }): Settlemen
   return settlements;
 }
 
-
 export default function BalanceScreen({ split, expenses, currentUserId }: BalanceScreenProps) {
   if (!split) return null;
 
@@ -143,8 +151,8 @@ export default function BalanceScreen({ split, expenses, currentUserId }: Balanc
               {currentUserSettlements.map((settlement, index) => (
                 <Text key={index} style={styles.summaryDetailText}>
                   {settlement.from === currentUserId 
-                    ? `To ${getDisplayName(settlement.to)}`
-                    : `From ${getDisplayName(settlement.from)}`
+                    ? `To ${getDisplayName(settlement.to)}: ${split.currency}${settlement.amount.toFixed(2)}`
+                    : `From ${getDisplayName(settlement.from)}: ${split.currency}${settlement.amount.toFixed(2)}`
                   }
                 </Text>
               ))}
@@ -171,23 +179,39 @@ export default function BalanceScreen({ split, expenses, currentUserId }: Balanc
           
           // Determine color based on balance
           let amountColor = '#666';
+          let statusText = '';
           if (Math.abs(net) > 0.01) {
-            amountColor = net > 0 ? '#4CAF50' : '#F44336';
+            if (net > 0) {
+              amountColor = '#4CAF50';
+              statusText = 'gets back';
+            } else {
+              amountColor = '#F44336';
+              statusText = 'owes';
+            }
+          } else {
+            statusText = 'settled';
           }
 
           return (
             <View style={styles.participantCard}>
-              <Text style={styles.participantName}>{displayName}</Text>
+              <View style={styles.participantInfo}>
+                <Text style={styles.participantName}>{displayName}</Text>
+                <Text style={[styles.participantStatus, { color: amountColor }]}>
+                  {statusText}
+                </Text>
+              </View>
               <Text style={[styles.participantAmount, { color: amountColor }]}>
                 {Math.abs(net) < 0.01 ? 
                   `${split.currency}0.00` : 
-                  `${net > 0 ? '+' : '-'}${split.currency}${Math.abs(net).toFixed(2)}`
+                  `${split.currency}${Math.abs(net).toFixed(2)}`
                 }
               </Text>
             </View>
           );
         }}
       />
+
+
     </View>
   );
 }
@@ -201,6 +225,8 @@ const styles = StyleSheet.create({
   settledCard: {backgroundColor: 'white',borderRadius: 12, padding: 20, marginBottom: 20, alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 3},
   settledText: {fontSize: 16, color: '#4CAF50', fontWeight: '500'},
   participantCard: {backgroundColor: 'white', borderRadius: 12, padding: 16, marginBottom: 12, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2, elevation: 2},
+  participantInfo: { flex: 1 },
   participantName: {fontSize: 16, fontWeight: '500', color: '#333'},
+  participantStatus: {fontSize: 14, marginTop: 2},
   participantAmount:{fontSize: 16, fontWeight: 'bold'},
 });
