@@ -248,7 +248,7 @@ export default function AddExpenseModal({ splitId, onClose }: AddExpenseModalPro
     
     const handleAddExpense = async () => {
         if (!title.trim() || !amount.trim()) {
-            Alert.alert('Validation Error', 'Please fill in both title and amount');
+            Alert.alert('Error', 'Please fill in both title and amount');
             return;
         }
 
@@ -259,7 +259,7 @@ export default function AddExpenseModal({ splitId, onClose }: AddExpenseModalPro
 
         const numAmount = parseFloat(amount);
         if (isNaN(numAmount) || numAmount <= 0) {
-            Alert.alert('Validation Error', 'Please enter a valid amount');
+            Alert.alert('Error', 'Please enter a valid amount');
             return;
         }
 
