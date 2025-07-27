@@ -519,7 +519,7 @@ export default function AddExpenseModal({ splitId, onClose }: AddExpenseModalPro
                             Total: {calculateCustomTotal().toFixed(2)} / {getExpectedAmount().toFixed(2)}
                         </Text>
                         {!validateCustomSplit() && (
-                            <Text style={styles.customSplitError}>Amounts don't mathc</Text>
+                            <Text style={styles.customSplitError}>Amounts don't match</Text>
                         )}
                     </View>
                 )}
