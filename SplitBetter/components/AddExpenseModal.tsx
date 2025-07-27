@@ -18,6 +18,8 @@ const currencies = [
     { code: 'GBP', label: 'GBP £' },
 ];
 
+const splitTypes = ["Equally", "Custom"];
+
 interface Participant {
   id: string;
   name: string;
@@ -60,6 +62,9 @@ export default function AddExpenseModal({ splitId, onClose }: AddExpenseModalPro
     const [splitTypeModal, setSplitTypeModal] = useState(false);
 
     const [selectedParticipants, setSelectedParticipants] = useState<string[]>([]);
+    
+    // Hold users and their amount paid for custom split
+    const [customAmounts, setCustomAmounts] = useState<Record<string, string>>({});
     
     // Currency conversion states
     const [convertedAmount, setConvertedAmount] = useState<number | null>(null);
@@ -118,7 +123,14 @@ export default function AddExpenseModal({ splitId, onClose }: AddExpenseModalPro
                     
                     setParticipants(participantsList);
                     setSelectedParticipants(participantsList.map(p => p.id));
-                    
+
+                    // Initialise custom amounts
+                    const initialAmount: Record<string, string> = {};
+                    participantsList.forEach(p => {
+                        initialAmount[p.id] = ''
+                    });
+                    setCustomAmounts(initialAmount);
+
                     // Set default paid by to current user
                     const currentUserParticipant = participantsList.find(p => p.id === user?.uid);
                     if (currentUserParticipant) {
@@ -177,8 +189,24 @@ export default function AddExpenseModal({ splitId, onClose }: AddExpenseModalPro
 
         performConversion();
     }, [amount, currency, split]);
+    
+    // Rest custom amount
+    useEffect(() => {
+        if (splitType === "Custom") {
+            const initialAmount: Record<string, string> ={};
+            selectedParticipants.forEach(id => {
+                initialAmount[id] = customAmounts[id] || '';
+            });
+            setCustomAmounts(initialAmount);
+        }
+    }, [splitType, selectedParticipants]);
 
     const toggleParticipants = (id: string) => {
+        // if (splitType === "Custom") {
+        //     // For custom split, don't allow deselecting participants
+        //     // Or you could handle it by removing their amount
+        //     return;
+        // }
         setSelectedParticipants(selected => 
             selected.includes(id)
             ? selected.filter(pid => pid !== id)
@@ -186,9 +214,41 @@ export default function AddExpenseModal({ splitId, onClose }: AddExpenseModalPro
         );
     }
     
+    // Updates the custom amount for a specific participant
+    const updateCustomAmount = (participantId: string, amount: string) => {
+        setCustomAmounts(prev => ({
+            ...prev,
+            [participantId] : amount
+        }));
+    }
+    
+    const calculateCustomTotal = () => {
+        return Object.values(customAmounts).reduce((total, amount) => {
+            const num = parseFloat(amount || '0');
+            return total + (isNaN(num) ? 0 : num);
+        }, 0);
+    }
+
+    const getExpectedAmount = () => {
+        if (currency.code === split?.currency) {
+            return parseFloat(amount || '0');
+        }
+        return convertedAmount || 0;
+    }
+
+    const validateCustomSplit = () => {
+        if (splitType != 'Custom') return true;
+
+        const total = calculateCustomTotal();
+        const expected = getExpectedAmount();
+
+        const difference = Math.abs(total - expected);
+        return difference < 0.01
+    }
+    
     const handleAddExpense = async () => {
         if (!title.trim() || !amount.trim()) {
-            Alert.alert('Validation Error', 'Please fill in both title and amount');
+            Alert.alert('Error', 'Please fill in both title and amount');
             return;
         }
 
@@ -199,8 +259,27 @@ export default function AddExpenseModal({ splitId, onClose }: AddExpenseModalPro
 
         const numAmount = parseFloat(amount);
         if (isNaN(numAmount) || numAmount <= 0) {
-            Alert.alert('Validation Error', 'Please enter a valid amount');
+            Alert.alert('Error', 'Please enter a valid amount');
             return;
+        }
+
+        if (splitType === 'Custom') {
+            if (!validateCustomSplit()) {
+                const total = calculateCustomTotal();
+                const expected = getExpectedAmount();
+                Alert.alert(
+                    'Split Amount Mismatch'
+                );
+                return;
+            }
+
+            // Check to see if all selected participants have amounts
+            const missingAmounts = selectedParticipants.filter(id => !customAmounts[id] || parseFloat(customAmounts[id]) <= 0);
+
+            if (missingAmounts.length > 0) {
+                Alert.alert('Validation Error');
+                return;
+            }
         }
 
         setLoading(true);
@@ -217,6 +296,13 @@ export default function AddExpenseModal({ splitId, onClose }: AddExpenseModalPro
                 participantCount: selectedParticipants.length,
                 splitType,
             };
+
+            if (splitType === "Custom") {
+                expenseData.customAmounts = {};
+                selectedParticipants.forEach(id => {
+                    expenseData.customAmounts[id] = parseFloat(customAmounts[id]);
+                });
+            }
 
             // Handle currency conversion
             if (currency.code === split.currency) {
@@ -256,6 +342,12 @@ export default function AddExpenseModal({ splitId, onClose }: AddExpenseModalPro
             setSelectedParticipants(participants.map(p => p.id));
             setConvertedAmount(null);
             setConversionRate(null);
+
+            const initialAmounts: Record<string, string> = {};
+            participants.forEach(p => {
+                initialAmounts[p.id] = '';
+            });
+            setCustomAmounts(initialAmounts);
             
             // Close modal
             onClose();
@@ -412,25 +504,52 @@ export default function AddExpenseModal({ splitId, onClose }: AddExpenseModalPro
                 <Modal visible={splitTypeModal} transparent animationType='slide'>
                     <TouchableOpacity style={styles.modalOverlay} onPress={() => setSplitTypeModal(false)} activeOpacity={1}>
                         <View style={styles.modalBox}>
-                            <TouchableOpacity style={styles.modalItem} onPress={() => { setSplitType("Equally"),setSplitTypeModal(false)}}>
-                                <Text style={{fontSize: 18}}>Equally</Text>
-                            </TouchableOpacity>
+                            {splitTypes.map(type => (
+                                <TouchableOpacity key={type} style={styles.modalItem} onPress={() => {setSplitType(type); setSplitTypeModal(false);}}>
+                                    <Text style={{fontSize: 18}}>{type}</Text>
+                                </TouchableOpacity>
+                            ))}
                         </View>
                     </TouchableOpacity>
                 </Modal>
+                {/* Custom Split total Display */}
+                {splitType === 'Custom' && amount && (
+                    <View style={styles.customSplitInfo}>
+                        <Text style={styles.customSplitText}>
+                            Total: {calculateCustomTotal().toFixed(2)} / {getExpectedAmount().toFixed(2)}
+                        </Text>
+                        {!validateCustomSplit() && (
+                            <Text style={styles.customSplitError}>Amounts don't mathc</Text>
+                        )}
+                    </View>
+                )}
 
                 {/* List of people in Split */}
                 {participants.map(p => (
-                    <TouchableOpacity 
-                        key={p.id} 
-                        style={[styles.participantRow, selectedParticipants.includes(p.id) && styles.participantRowSelected]} 
-                        onPress={() => toggleParticipants(p.id)}
-                    >
-                        <Text style={styles.checkbox}>
-                            {selectedParticipants.includes(p.id) ? "✓" : "○"}
-                        </Text>
-                        <Text style={styles.participantName}>{p.name}</Text>
-                    </TouchableOpacity>
+                    <View key={p.id} style={{marginBottom: 8}}>
+                        <TouchableOpacity 
+                            style={[styles.participantRow, selectedParticipants.includes(p.id) && styles.participantRowSelected,
+                                    splitType === "Custom" && selectedParticipants.includes(p.id) && styles.participantRowCustom]} 
+                            onPress={() => toggleParticipants(p.id)}>
+                            <View style={styles.participantInfo}>
+                                <Text style={styles.checkbox}>
+                                    {selectedParticipants.includes(p.id) ? "✓" : "○"}
+                                </Text>
+                                <Text style={styles.participantName}>{p.name}</Text>
+                            </View>
+
+                            {/* Custom amount input */}
+                            {splitType === "Custom" && selectedParticipants.includes(p.id) && (
+                                <TextInput
+                                    style={styles.customAmountInput}
+                                    placeholder="0.00"
+                                    value={customAmounts[p.id] || ''}
+                                    onChangeText={(value) => updateCustomAmount(p.id, value)}
+                                    keyboardType="decimal-pad"
+                                />
+                            )}
+                        </TouchableOpacity>
+                    </View>
                 ))}
             </View>
 
@@ -476,8 +595,15 @@ const styles = StyleSheet.create({
     addButtonText: {fontSize: 18, fontWeight: '600', color: '#fff'},
     participantRow: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: '#e0e0e0', borderRadius: 8, padding: 10, marginBottom: 8, backgroundColor: 'white' },
     participantRowSelected: { backgroundColor: '#eef5ff', borderColor: '#4169E1' },
+    participantRowCustom: {paddingRight: 16},
+    participantInfo: {flexDirection: 'row', alignItems: 'center', flex: 1},
     checkbox: { marginRight: 8, fontSize: 18 },
-    participantName: { fontSize: 16, color: '#333' },
+    participantName: { fontSize: 16, color: '#333', flex:1},
+    customAmountContainer: {marginTop: 8, paddingLeft:26},
+    customAmountInput: {borderWidth: 1, borderColor: "#e0e0e0", borderRadius: 8, fontSize: 16, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: "#fafbfc", width:100, textAlign: 'right'},
+    customSplitInfo: {backgroundColor:"#f8f9fa", padding: 12, borderRadius: 8, marginBottom: 16},
+    customSplitText: {fontSize: 16, fontWeight: '500', color: "#333"},
+    customSplitError: {fontSize: 14, color: "#e74c3c", marginTop: 4, fontWeight: '500'},
     modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.15)', justifyContent: 'flex-end' },
     modalBox: { backgroundColor: 'white', padding: 24, borderTopLeftRadius: 20, borderTopRightRadius: 20 },
     modalItem: { paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#eee', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
