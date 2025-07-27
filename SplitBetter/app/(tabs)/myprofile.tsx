@@ -165,12 +165,16 @@ export default function ProfileScreen() {
         // For individual expenses
         if (participants.includes(user.uid) && !isSettlement) {
           let share = 0;
-          // Equal Splitting
-          if (exp.splitType === "Equally" && Array.isArray(exp.participants)) {
+          // Handle different split types
+          if (exp.splitType === "Custom" && exp.customAmounts && exp.customAmounts[user.uid]) {
+            // Use custom amount for this user
+            share = exp.customAmounts[user.uid];
+          } else if (exp.splitType === "Equally" && Array.isArray(exp.participants)) {
+            // Equal splitting
             share = exp.amount / exp.participants.length;
           } else {
-            // fallback for non-equal splits not yet implemented
-            share = exp.amount;
+            // Fallback for other split types
+            share = exp.amount / participants.length;
           }
           const cat = exp.category || 'Others';
           totals[cat] = (totals[cat] || 0) + share;
@@ -196,21 +200,47 @@ export default function ProfileScreen() {
               newDebtMap[payer] = (newDebtMap[payer] || 0) - exp.amount;
             }
           });
-        } else {participants.forEach(participantId => {
-          if (participantId === payer) return;
-          userIdSet.add(participantId);
-          userIdSet.add(payer);
+        } else {
+          // Handle regular expenses for debt calculation
+          participants.forEach(participantId => {
+            userIdSet.add(participantId);
+            userIdSet.add(payer);
+          });
 
-          // If you are the payer ppl owe you
-          if (payer === user.uid && participantId != user.uid) {
-            newDebtMap[participantId] = (newDebtMap[participantId] || 0) + exp.amount / participants.length;
+          // Calculate each person's share of the expense
+          let userShare = 0;
+          let payerShare = 0;
+          
+          if (exp.splitType === "Custom" && exp.customAmounts) {
+            // For custom splits, use the exact amounts
+            userShare = exp.customAmounts[user.uid] || 0;
+            payerShare = exp.customAmounts[payer] || 0;
+          } else {
+            // For equal splits, divide equally
+            const shareAmount = exp.amount / participants.length;
+            userShare = participants.includes(user.uid) ? shareAmount : 0;
+            payerShare = participants.includes(payer) ? shareAmount : 0;
           }
 
-          if (participantId === user.uid && payer != user.uid) {
-            newDebtMap[payer] = (newDebtMap[payer] || 0) - exp.amount / participants.length;
+          // Update debt based on who paid vs who owes
+          if (payer === user.uid) {
+            // Current user paid - others owe them their share
+            participants.forEach(participantId => {
+              if (participantId !== user.uid) {
+                let participantShare = 0;
+                if (exp.splitType === "Custom" && exp.customAmounts) {
+                  participantShare = exp.customAmounts[participantId] || 0;
+                } else {
+                  participantShare = exp.amount / participants.length;
+                }
+                newDebtMap[participantId] = (newDebtMap[participantId] || 0) + participantShare;
+              }
+            });
+          } else if (participants.includes(user.uid)) {
+            // Someone else paid and current user participated - current user owes their share
+            newDebtMap[payer] = (newDebtMap[payer] || 0) - userShare;
           }
-        });
-      }  
+        }  
       });
     }
     setCategoryTotals(totals);

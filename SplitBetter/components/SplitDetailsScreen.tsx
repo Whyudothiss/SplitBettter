@@ -15,7 +15,7 @@ import { db } from '@/firebaseConfig';
 import { useAuth } from '@/components/AuthContext';
 import AddExpenseModal from './AddExpenseModal';
 import BalanceScreen from './BalanceScreen';
-import Photos from '@/components/PhotoPage';
+import Photos from '@/components/PhotosPage';
 
 interface Split {
   id: string;
@@ -41,6 +41,8 @@ interface Expense {
   participantCount?: number;
   splitId: string;
   createdAt: any;
+  splitType?: string; // Added for custom split support
+  customAmounts?: Record<string, number>; // Added for custom split support
 }
 
 interface SplitDetailsScreenProps {
@@ -108,6 +110,7 @@ export default function SplitDetailsScreen({ splitId, onBack }: SplitDetailsScre
       const expensesData: Expense[] = [];
       let total = 0;
       let userShare = 0;
+
       expensesSnapshot.forEach((doc) => {
         const expenseData = {
           id: doc.id,
@@ -118,12 +121,23 @@ export default function SplitDetailsScreen({ splitId, onBack }: SplitDetailsScre
         
         // Use the amount field which should already be in split currency
         total += expenseData.amount;
-        // Only calculate user share if they are participating
+        
+        // Calculate user share based on split type
         if (expenseData.participants && expenseData.participants.includes(user?.uid)) {
-          const userShareOfExpense = expenseData.amount / expenseData.participants.length;
+          let userShareOfExpense = 0;
+          
+          if (expenseData.splitType === 'Custom' && expenseData.customAmounts) {
+            // Use custom amount for this user
+            userShareOfExpense = expenseData.customAmounts[user.uid] || 0;
+          } else {
+            // Default to equal split
+            userShareOfExpense = expenseData.amount / expenseData.participants.length;
+          }
+          
           userShare += userShareOfExpense;
         }
       });
+
       setExpenses(expensesData);
       setTotalExpenses(total);
       setUserExpenses(userShare);
@@ -151,13 +165,33 @@ export default function SplitDetailsScreen({ splitId, onBack }: SplitDetailsScre
 
   const handleTabChange = (tab: TabType) => setActiveTab(tab);
 
-  // Helper function to render expense amount with original currency info
+  // Enhanced function to render expense amount with original currency info and custom split details
   const renderExpenseAmount = (expense: Expense) => {
     if (!split) return null;
     
     const displayAmount = `${split.currency}${expense.amount.toFixed(2)}`;
     
-    // Show original amount if it was converted
+    // Show user's share for custom splits
+    if (expense.splitType === 'Custom' && expense.customAmounts && user?.uid) {
+      const userAmount = expense.customAmounts[user.uid] || 0;
+      return (
+        <View style={styles.expenseAmountContainer}>
+          <Text style={styles.expenseAmount}>{displayAmount}</Text>
+          <Text style={styles.userShareAmount}>
+            Your share: {split.currency}{userAmount.toFixed(2)}
+          </Text>
+          {expense.originalAmount && 
+           expense.originalCurrency && 
+           expense.originalCurrency !== split.currency && (
+            <Text style={styles.originalAmount}>
+              (Originally {expense.originalCurrency}{expense.originalAmount.toFixed(2)})
+            </Text>
+          )}
+        </View>
+      );
+    }
+    
+    // Show original amount if it was converted (for equal splits)
     if (expense.originalAmount && 
         expense.originalCurrency && 
         expense.originalCurrency !== split.currency) {
@@ -269,6 +303,9 @@ export default function SplitDetailsScreen({ splitId, onBack }: SplitDetailsScre
                     <Text style={styles.expensePaidBy}>
                       Paid by {expense.paidBy === user?.uid ? 'Me' : expense.paidByName || participantsNames[expense.paidBy] || 'Someone'}
                     </Text>
+                    {expense.splitType === 'Custom' && (
+                      <Text style={styles.splitTypeLabel}>Custom Split</Text>
+                    )}
                   </View>
                   {renderExpenseAmount(expense)}
                 </TouchableOpacity>
@@ -324,7 +361,7 @@ const styles = StyleSheet.create({
   summaryContainer: { flexDirection: 'row', paddingHorizontal: 20, gap: 15, marginBottom: 30 },
   summaryCard: { flex: 1, backgroundColor: '#fff', padding: 15, borderRadius: 15, borderWidth: 1, borderColor: '#e0e0e0', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 3.84, elevation: 5 },
   summaryLabel: { fontSize: 14, color: '#666', marginBottom: 8, fontWeight: '500' },
-  summaryAmount: { fontSize: 28, fontWeight: 'bold', color: '#333' },
+  summaryAmount: { fontSize: 26, fontWeight: 'bold', color: '#333' },
   negativeAmount: { color: '#e74c3c' },
   expensesList: { flex: 1, paddingHorizontal: 20 },
   emptyState: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: 100 },
@@ -335,8 +372,10 @@ const styles = StyleSheet.create({
   expenseContent: { flex: 1 },
   expenseTitle: { fontSize: 18, fontWeight: '600', color: '#333', marginBottom: 4 },
   expensePaidBy: { fontSize: 14, color: '#666' },
+  splitTypeLabel: { fontSize: 12, color: '#4169E1', fontWeight: '500', marginTop: 2 },
   expenseAmountContainer: { alignItems: 'flex-end' },
   expenseAmount: { fontSize: 18, fontWeight: '600', color: '#333' },
+  userShareAmount: { fontSize: 14, color: '#4169E1', fontStyle: 'italic', marginTop: 2, textAlign: 'right' },
   originalAmount: { fontSize: 12, color: '#666', fontStyle: 'italic', marginTop: 2, textAlign: 'right'},
   addButtonContainer: { paddingHorizontal: 20, paddingVertical: 20, paddingBottom: 30 },
   addButton: { backgroundColor: '#333', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 15, borderRadius: 25, gap: 10 },

@@ -277,7 +277,7 @@ export default function AddExpenseModal({ splitId, onClose }: AddExpenseModalPro
             const missingAmounts = selectedParticipants.filter(id => !customAmounts[id] || parseFloat(customAmounts[id]) <= 0);
 
             if (missingAmounts.length > 0) {
-                Alert.alert('Validation Error');
+                Alert.alert('Error');
                 return;
             }
         }
